@@ -1,0 +1,88 @@
+body#checkout section.checkout-step .payment-options .payment-option {
+    margin-bottom: 0.8rem;
+}
+
+body#checkout section.checkout-step .payment-options .payment-option img {
+    width: 80px;
+}
+
+.zenkipay-logo {
+    width: 250px;
+    height: auto;
+    margin-bottom: 15px;
+}
+
+.zenkipay-form-container {
+    border: 1px solid #d6d4d4;
+    border-radius: 4px;
+    color: #333;
+    display: block;
+    font-size: 17px;
+    font-weight: bold;
+    letter-spacing: -1px;
+    line-height: 23px;
+    padding: 30px;
+    position: relative;
+    /*    background: #fbfbfb;*/
+}
+
+.zenkipay-form-container p {
+    font-weight: normal;
+    margin-bottom: 0px;
+}
+
+div.payment_module {
+    margin-bottom: 10px;
+}
+
+.zenkipay_title {
+    margin-top: 0px;
+}
+
+.zenkipay_title img {
+    float: none;
+    margin-right: 8px;
+    margin-top: -2px;
+    vertical-align: middle;
+}
+
+div.zenkipay-payment-errors {
+    margin: 0 0 10px 0;
+    padding: 10px;
+    border: 1px solid #900;
+    font-size: 13px;
+    background: #fcc;
+    display: none;
+}
+
+.mt30 {
+    margin-top: 30px;
+}
+
+.mt10 {
+    margin-top: 10px;
+}
+
+.mt20 {
+    margin-top: 20px;
+}
+
+.mb30 {
+    margin-bottom: 30px;
+}
+
+.mb20 {
+    margin-bottom: 20px;
+}
+
+.mb10 {
+    margin-bottom: 10px;
+}
+
+.disabled {
+    cursor: not-allowed;
+}
+
+#zenkipay-container {
+    position: relative;
+}
