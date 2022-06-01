@@ -182,7 +182,13 @@ class Zenkipay extends PaymentModule
         $formatted_products = [];
 
         foreach ($products as $product) {
-            array_push($formatted_products, ['itemId' => $product['id_product'], 'quantity' => $product['cart_quantity'], 'price' => round($product['price_wt'], 2), 'thumbnailUrl' => '']);
+            array_push($formatted_products, [
+                'itemId' => $product['id_product'],
+                'name' => $product['name'],
+                'productDescription' => strip_tags($product['description_short']),
+                'quantity' => $product['cart_quantity'],
+                'price' => round($product['price_wt'], 2),
+            ]);
         }
 
         $data = [
