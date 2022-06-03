@@ -608,3 +608,8 @@ hr {
 .zenkipay-settings input[type='text'] {
     width: 300px !important;
 }
+
+.zenkipay-settings input[type='text']:disabled,
+.zenkipay-settings input[type='text']:read-only {
+    background-color: #ebebe4;
+}

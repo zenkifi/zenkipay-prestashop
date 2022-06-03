@@ -39,7 +39,7 @@
     
 <script type="text/javascript">    
     $(document).ready(function() {     
-        var zenkipayOrderId = '';        
+        var shopperCarId = "{$shopperCarId|escape:'htmlall':'UTF-8'}";        
         var amount = {$total|escape:'htmlall':'UTF-8'};   
         var zenkipayKey = "{$pk|escape:'htmlall':'UTF-8'}";
         var currency = "{$currency|escape:'htmlall':'UTF-8'}";           
@@ -50,6 +50,7 @@
             amount,
             country,
             currency,
+            shopperCarId,
             items
         };
 
@@ -58,16 +59,14 @@
                 shape: 'square',
                 theme: 'light',
             },
-            zenkipayKey: zenkipayKey,
+            zenkipayKey,
             purchaseData,
-        };
-        
-        console.log('#preparePayment', { purchaseOptions });
+        };               
         
         $("#payment-confirmation > .ps-shown-by-js > button").click(function(event) {            
             var myPaymentMethodSelected = $(".payment-options").find("input[data-module-name='zenkipay']").is(":checked");            
             if (myPaymentMethodSelected){
-                event.preventDefault();                               
+                event.preventDefault();                                      
                 
                 $(this).prop('disabled', true); /* Disable the submit button to prevent repeated clicks */
                 $('.zenkipay-payment-errors').hide();                                                        
@@ -78,23 +77,23 @@
     });    
 
 
-    var handleZenkipayEvents = function (error, data, details) {
-        console.log('handleZenkipayEvents', { error, data, details })
+    var handleZenkipayEvents = function (error, data, details) {        
+        var submitBtn = $("#payment-confirmation > .ps-shown-by-js > button");
 
         if (!error && details.postMsgType === 'done') {
-            var zenkipayOrderId = data;
+            var zenkipayOrderId = data.orderId;
             $('#zenkipay-payment-form').append('<input type="hidden" name="zenkipay_trx_id" value="' + escape(zenkipayOrderId) + '" />');
             $('#zenkipay-payment-form').get(0).submit();            
         }
 
-        if (error && details.postMsgType === 'error') {                    
-            var submitBtn = $("#payment-confirmation > .ps-shown-by-js > button");
+        if (error && details.postMsgType === 'error') {                                
             var errorMsg = "{l s='An unexpected error occurred.' mod='zenkipay'}";
             $('.zenkipay-payment-errors').fadeIn(1000);
-            $('.zenkipay-payment-errors').text(errorMsg).fadeIn(1000);                
-            submitBtn.prop('disabled', false);            
+            $('.zenkipay-payment-errors').text(errorMsg).fadeIn(1000);                                      
         }                
 
+        submitBtn.prop('disabled', false);  
+        
         return false;
     };
 </script>
