@@ -39,7 +39,7 @@
     
 <script type="text/javascript">    
     $(document).ready(function() {     
-        var zenkipayOrderId = '';        
+        var shopperCarId = "{$shopperCarId|escape:'htmlall':'UTF-8'}";        
         var amount = {$total|escape:'htmlall':'UTF-8'};   
         var zenkipayKey = "{$pk|escape:'htmlall':'UTF-8'}";
         var currency = "{$currency|escape:'htmlall':'UTF-8'}";           
@@ -50,6 +50,7 @@
             amount,
             country,
             currency,
+            shopperCarId,
             items
         };
 
@@ -60,12 +61,12 @@
             },
             zenkipayKey,
             purchaseData,
-        };            
+        };               
         
         $("#payment-confirmation > .ps-shown-by-js > button").click(function(event) {            
             var myPaymentMethodSelected = $(".payment-options").find("input[data-module-name='zenkipay']").is(":checked");            
             if (myPaymentMethodSelected){
-                event.preventDefault();                               
+                event.preventDefault();                                      
                 
                 $(this).prop('disabled', true); /* Disable the submit button to prevent repeated clicks */
                 $('.zenkipay-payment-errors').hide();                                                        
