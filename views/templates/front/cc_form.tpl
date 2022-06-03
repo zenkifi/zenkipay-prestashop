@@ -58,11 +58,9 @@
                 shape: 'square',
                 theme: 'light',
             },
-            zenkipayKey: zenkipayKey,
+            zenkipayKey,
             purchaseData,
-        };
-        
-        console.log('#preparePayment', { purchaseOptions });
+        };            
         
         $("#payment-confirmation > .ps-shown-by-js > button").click(function(event) {            
             var myPaymentMethodSelected = $(".payment-options").find("input[data-module-name='zenkipay']").is(":checked");            
@@ -78,23 +76,23 @@
     });    
 
 
-    var handleZenkipayEvents = function (error, data, details) {
-        console.log('handleZenkipayEvents', { error, data, details })
+    var handleZenkipayEvents = function (error, data, details) {        
+        var submitBtn = $("#payment-confirmation > .ps-shown-by-js > button");
 
         if (!error && details.postMsgType === 'done') {
-            var zenkipayOrderId = data;
+            var zenkipayOrderId = data.orderId;
             $('#zenkipay-payment-form').append('<input type="hidden" name="zenkipay_trx_id" value="' + escape(zenkipayOrderId) + '" />');
             $('#zenkipay-payment-form').get(0).submit();            
         }
 
-        if (error && details.postMsgType === 'error') {                    
-            var submitBtn = $("#payment-confirmation > .ps-shown-by-js > button");
+        if (error && details.postMsgType === 'error') {                                
             var errorMsg = "{l s='An unexpected error occurred.' mod='zenkipay'}";
             $('.zenkipay-payment-errors').fadeIn(1000);
-            $('.zenkipay-payment-errors').text(errorMsg).fadeIn(1000);                
-            submitBtn.prop('disabled', false);            
+            $('.zenkipay-payment-errors').text(errorMsg).fadeIn(1000);                                      
         }                
 
+        submitBtn.prop('disabled', false);  
+        
         return false;
     };
 </script>
