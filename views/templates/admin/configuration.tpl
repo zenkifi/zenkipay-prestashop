@@ -68,30 +68,32 @@
                 <legend><img src="{$module_dir|escape:'htmlall':'UTF-8'}views/img/technical-icon.gif" alt="" />{l s='Configuration' mod='zenkipay'}</legend>
                 <div style="text-align: left; margin-left: 15px; margin-bottom: 10px;">    
                     <label style="float: none; width: auto;">{l s='Mode' mod='zenkipay'}</label>
-                    <input type="radio" name="zenkipay_mode" value="0" {if $zenkipay_configuration.ZENKIPAY_MODE == 0} checked="checked"{/if} /> {l s='Sandbox' mod='zenkipay'} 
-                    <input class="ml-5" type="radio" name="zenkipay_mode" value="1" {if $zenkipay_configuration.ZENKIPAY_MODE == 1} checked="checked"{/if} /> {l s='Live' mod='zenkipay'}
+                    <input id="zenkipay_mode_off" type="radio" name="zenkipay_mode" value="0" {if $zenkipay_configuration.ZENKIPAY_MODE == 0} checked="checked"{/if} /> {l s='Sandbox' mod='zenkipay'} 
+                    <input id="zenkipay_mode_on" class="ml-5" type="radio" name="zenkipay_mode" value="1" {if $zenkipay_configuration.ZENKIPAY_MODE == 1} checked="checked"{/if} /> {l s='Live' mod='zenkipay'}
                 </div>                
                 <table cellspacing="0" cellpadding="0" class="zenkipay-settings">
                     <tr>
                         <td align="center" valign="middle" colspan="2">
                             <table cellspacing="0" cellpadding="0" class="innerTable">
                                 <tr>
-                                    <td align="left" valign="middle">{l s='Sandbox public key' mod='zenkipay'}</td>
+                                    <td align="left" valign="middle">{l s='Sandbox Zenkipay key' mod='zenkipay'}</td>
                                     <td align="left" valign="middle">
                                         <input
                                             autocomplete="off"
                                             type="text"
+                                            id="zenkipay_public_key_test"
                                             name="zenkipay_public_key_test"
                                             value="{if $zenkipay_configuration.ZENKIPAY_PUBLIC_KEY_TEST}{$zenkipay_configuration.ZENKIPAY_PUBLIC_KEY_TEST|escape:'htmlall':'UTF-8'}{/if}"
                                         />
                                     </td>
                                     <td width="15"></td>
                                     <td width="15" class="vertBorder"></td>
-                                    <td align="left" valign="middle">{l s='Live public key' mod='zenkipay'}</td>
+                                    <td align="left" valign="middle">{l s='Live Zenkipay key' mod='zenkipay'}</td>
                                     <td align="left" valign="middle">
                                         <input
                                             autocomplete="off"
                                             type="text"
+                                            id="zenkipay_public_key_live"
                                             name="zenkipay_public_key_live"
                                             value="{if $zenkipay_configuration.ZENKIPAY_PUBLIC_KEY_LIVE}{$zenkipay_configuration.ZENKIPAY_PUBLIC_KEY_LIVE|escape:'htmlall':'UTF-8'}{/if}"
                                         />
@@ -109,3 +111,22 @@
         <div class="clear"></div>
     </div>
 
+<script type="text/javascript">    
+    $(document).ready(function() {             
+        var handleDisableInputs = function () {
+            if( $('#zenkipay_mode_off').is(':checked') ){
+                $('#zenkipay_public_key_test').prop('readonly', false); 
+                $('#zenkipay_public_key_live').prop('readonly', true); 
+            } else{
+                $('#zenkipay_public_key_live').prop('readonly', false); 
+                $('#zenkipay_public_key_test').prop('readonly', true); 
+            }
+        }        
+
+        $('input[name=zenkipay_mode]').on('change', function() {            
+            handleDisableInputs();
+        });
+
+        handleDisableInputs();
+    });
+</script>    
