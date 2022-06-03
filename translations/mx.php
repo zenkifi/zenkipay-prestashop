@@ -33,8 +33,8 @@ $_MODULE['<{zenkipay}prestashop>configuration_254f642527b45bc260048e30704edb39']
 $_MODULE['<{zenkipay}prestashop>configuration_650be61892bf690026089544abbd9d26'] = 'Modo';
 $_MODULE['<{zenkipay}prestashop>configuration_2652eec977dcb2a5aea85f5bec235b05'] = 'Sandbox';
 $_MODULE['<{zenkipay}prestashop>configuration_955ad3298db330b5ee880c2c9e6f23a0'] = 'Producción';
-$_MODULE['<{zenkipay}prestashop>configuration_5add70ffebb3fc7302c8534276a08d20'] = 'Sandbox llave pública';
-$_MODULE['<{zenkipay}prestashop>configuration_919674002649a7a1ad98ef288c8adb99'] = 'Producción llave pública';
+$_MODULE['<{zenkipay}prestashop>configuration_5add70ffebb3fc7302c8534276a08d20'] = 'Sandbox llave Zenkipay';
+$_MODULE['<{zenkipay}prestashop>configuration_919674002649a7a1ad98ef288c8adb99'] = 'Producción llave Zenkipay';
 $_MODULE['<{zenkipay}prestashop>configuration_cf565402d32b79d33f626252949a6941'] = 'Guardar configuración';
 $_MODULE['<{zenkipay}prestashop>cc_form_678114c777fb4570c4f2add48ce49481'] = 'Paga con criptos… ¡cualquier billetera, cualquier moneda!. Transacción 100% asegurada.';
 $_MODULE['<{zenkipay}prestashop>cc_form_13b83757c15202887090ff6a49dc3cbf'] =
