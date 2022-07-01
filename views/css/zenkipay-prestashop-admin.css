@@ -606,7 +606,7 @@ hr {
 }
 
 .zenkipay-settings input[type='text'] {
-    width: 300px !important;
+    width: 485px !important;
 }
 
 .zenkipay-settings input[type='text']:disabled,

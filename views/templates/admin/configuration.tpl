@@ -76,8 +76,8 @@
                         <td align="center" valign="middle" colspan="2">
                             <table cellspacing="0" cellpadding="0" class="innerTable">
                                 <tr>
-                                    <td align="left" valign="middle">{l s='Sandbox Zenkipay key' mod='zenkipay'}</td>
-                                    <td align="left" valign="middle">
+                                    <td>{l s='Sandbox Zenkipay key' mod='zenkipay'}</td>
+                                    <td>
                                         <input
                                             autocomplete="off"
                                             type="text"
@@ -86,10 +86,10 @@
                                             value="{if $zenkipay_configuration.ZENKIPAY_PUBLIC_KEY_TEST}{$zenkipay_configuration.ZENKIPAY_PUBLIC_KEY_TEST|escape:'htmlall':'UTF-8'}{/if}"
                                         />
                                     </td>
-                                    <td width="15"></td>
-                                    <td width="15" class="vertBorder"></td>
-                                    <td align="left" valign="middle">{l s='Live Zenkipay key' mod='zenkipay'}</td>
-                                    <td align="left" valign="middle">
+                                </tr>
+                                <tr>
+                                    <td>{l s='Live Zenkipay key' mod='zenkipay'}</td>
+                                    <td>
                                         <input
                                             autocomplete="off"
                                             type="text"
@@ -97,7 +97,14 @@
                                             name="zenkipay_public_key_live"
                                             value="{if $zenkipay_configuration.ZENKIPAY_PUBLIC_KEY_LIVE}{$zenkipay_configuration.ZENKIPAY_PUBLIC_KEY_LIVE|escape:'htmlall':'UTF-8'}{/if}"
                                         />
-                                    </td>
+                                    </td>                                    
+                                </tr>
+                                <tr>
+                                    <td>{l s='RSA private key' mod='zenkipay'}</td>
+                                    <td>
+                                        <textarea rows="20" cols="75" id="zenkipay_rsa_private_key" name="zenkipay_rsa_private_key">{if $zenkipay_configuration.ZENKIPAY_RSA_PRIVATE_KEY}{$zenkipay_configuration.ZENKIPAY_RSA_PRIVATE_KEY|escape:'htmlall':'UTF-8'}{/if}</textarea>
+                                        <p>{l s='Copy and paste your private key here with: "cat /path/to/your/private-key.pem | pbcopy".' mod='zenkipay'}</i></b></p>
+                                    </td>                                    
                                 </tr>
                             </table>
                         </td>
