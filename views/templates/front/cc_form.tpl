@@ -38,32 +38,24 @@
 </div>    
     
 <script type="text/javascript">    
-    $(document).ready(function() {     
-        var shopperCarId = "{$shopperCarId|escape:'htmlall':'UTF-8'}";        
-        var amount = {$total|escape:'htmlall':'UTF-8'};   
+    $(document).ready(function() {                     
         var zenkipayKey = "{$pk|escape:'htmlall':'UTF-8'}";
-        var currency = "{$currency|escape:'htmlall':'UTF-8'}";           
-        var country = "{$country|escape:'htmlall':'UTF-8'}";    
-        var items = {$products|@json_encode nofilter};            
-        
-        var purchaseData = {
-            amount,
-            country,
-            currency,
-            shopperCarId,
-            items
-        };
+        var zenkipaySignature = "{$signature|escape:'htmlall':'UTF-8'}";
+        var purchaseData = {$purchase_data|@json_encode nofilter};    
 
         var purchaseOptions = {
             style: {
                 shape: 'square',
                 theme: 'light',
             },
-            zenkipayKey,
-            purchaseData,
+            zenkipayKey,          
+            purchaseData,  
+            signature: {
+                zenkipaySignature,
+            },
         };               
         
-        $("#payment-confirmation > .ps-shown-by-js > button").click(function(event) {            
+        $("#payment-confirmation > .ps-shown-by-js > button").click(function(event) {                   
             var myPaymentMethodSelected = $(".payment-options").find("input[data-module-name='zenkipay']").is(":checked");            
             if (myPaymentMethodSelected){
                 event.preventDefault();                                      
@@ -89,7 +81,8 @@
         if (error && details.postMsgType === 'error') {                                
             var errorMsg = "{l s='An unexpected error occurred.' mod='zenkipay'}";
             $('.zenkipay-payment-errors').fadeIn(1000);
-            $('.zenkipay-payment-errors').text(errorMsg).fadeIn(1000);                                      
+            $('.zenkipay-payment-errors').text(errorMsg).fadeIn(1000);    
+            return;                                  
         }                
 
         submitBtn.prop('disabled', false);  
