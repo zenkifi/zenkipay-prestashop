@@ -202,7 +202,7 @@ class Zenkipay extends PaymentModule
             ];
 
             $payload = json_encode($purchase_data);
-            $signature = $this->generateSignature('federico');
+            $signature = $this->generateSignature($payload);
 
             $data = [
                 'js_dir' => _PS_JS_DIR_,
