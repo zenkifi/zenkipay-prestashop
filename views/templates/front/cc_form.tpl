@@ -40,18 +40,16 @@
 <script type="text/javascript">    
     $(document).ready(function() {                     
         var zenkipayKey = "{$pk|escape:'htmlall':'UTF-8'}";
-        var zenkipaySignature = "{$signature|escape:'htmlall':'UTF-8'}";
+        var purchaseSignature = "{$signature|escape:'htmlall':'UTF-8'}";
         var purchaseData = {$purchase_data|@json_encode nofilter};    
 
-        var purchaseOptions = {
+        var purchaseOptions = {            
+            zenkipayKey,          
+            purchaseData,  
+            purchaseSignature,
             style: {
                 shape: 'square',
                 theme: 'light',
-            },
-            zenkipayKey,          
-            purchaseData,  
-            signature: {
-                zenkipaySignature,
             },
         };               
         
@@ -61,7 +59,9 @@
                 event.preventDefault();                                      
                 
                 $(this).prop('disabled', true); /* Disable the submit button to prevent repeated clicks */
-                $('.zenkipay-payment-errors').hide();                                                        
+                $('.zenkipay-payment-errors').hide();     
+
+                console.log('purchaseOptions', purchaseOptions)                                                   
                                 
                 zenkiPay.openModal(purchaseOptions, handleZenkipayEvents);                    
             }
@@ -69,7 +69,7 @@
     });    
 
 
-    var handleZenkipayEvents = function (error, data, details) {        
+    var handleZenkipayEvents = function (error, data, details) {            
         var submitBtn = $("#payment-confirmation > .ps-shown-by-js > button");
 
         if (!error && details.postMsgType === 'done') {

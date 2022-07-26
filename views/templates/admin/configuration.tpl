@@ -100,6 +100,20 @@
                                     </td>                                    
                                 </tr>
                                 <tr>
+                                    <td>{l s='Webhook signing secret' mod='zenkipay'}</td>
+                                    <td>
+                                        <input
+                                            required
+                                            autocomplete="off"
+                                            type="password"
+                                            id="zenkipay_webhook_signing_secret"
+                                            name="zenkipay_webhook_signing_secret"
+                                            value="{if $zenkipay_configuration.ZENKIPAY_WEBHOOK_SIGNING_SECRET}{$zenkipay_configuration.ZENKIPAY_WEBHOOK_SIGNING_SECRET|escape:'htmlall':'UTF-8'}{/if}"
+                                        />
+                                        <p>{l s='You can get this secret from your Zenkipay Dashboard: Configurations > Webhooks.' mod='zenkipay'}</i></b></p>
+                                    </td>                                    
+                                </tr>
+                                <tr>
                                     <td>{l s='RSA private key' mod='zenkipay'}</td>
                                     <td>
                                         <textarea rows="20" cols="75" id="zenkipay_rsa_private_key" name="zenkipay_rsa_private_key">{if $zenkipay_configuration.ZENKIPAY_RSA_PRIVATE_KEY}{$zenkipay_configuration.ZENKIPAY_RSA_PRIVATE_KEY|escape:'htmlall':'UTF-8'}{/if}</textarea>
