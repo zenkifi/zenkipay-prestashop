@@ -605,7 +605,8 @@ hr {
     margin-top: 20px;
 }
 
-.zenkipay-settings input[type='text'] {
+.zenkipay-settings input[type='text'],
+.zenkipay-settings input[type='password'] {
     width: 485px !important;
 }
 

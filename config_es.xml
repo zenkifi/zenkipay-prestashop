@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<module>
+    <name>zenkipay</name>
+    <displayName><![CDATA[Zenkipay]]></displayName>
+    <version><![CDATA[1.3.0]]></version>
+    <description><![CDATA[&iexcl;Acepte criptos de cualquier billetera, cualquier moneda en su p&aacute;gina de pago!]]></description>
+    <author><![CDATA[PayByWallet, Inc]]></author>
+    <tab><![CDATA[payments_gateways]]></tab>
+	<confirmUninstall><![CDATA[¿Estás seguro de querer desinstalar este módulo?]]></confirmUninstall>
+    <is_configurable>1</is_configurable>
+    <need_instance>1</need_instance>
+	<limited_countries></limited_countries>
+</module>
