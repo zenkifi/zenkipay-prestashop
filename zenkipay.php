@@ -39,15 +39,13 @@ class Zenkipay extends PaymentModule
 
     public function __construct()
     {
-        $this->sandbox_api_url = 'https://dev-api.zenki.fi';
-        $this->api_url = 'https://uat-api.zenki.fi';
-
-        $this->sandbox_url = 'https://dev-gateway.zenki.fi';
-        $this->url = 'https://uat-gateway.zenki.fi';
+        $this->api_url = 'https://api.zenki.fi';
+        $this->url = 'https://prod-gateway.zenki.fi';
+        $this->js_url = 'https://resources.zenki.fi/zenkipay/script/zenkipay.js';
 
         $this->name = 'zenkipay';
         $this->tab = 'payments_gateways';
-        $this->version = '1.3.0';
+        $this->version = '1.4.0';
         $this->author = 'PayByWallet, Inc';
         $this->webhook_signing_secret = Configuration::get('ZENKIPAY_WEBHOOK_SIGNING_SECRET');
 
@@ -267,7 +265,7 @@ class Zenkipay extends PaymentModule
             $validation_title = $this->l('At least one problem was found in order to start using Zenkipay. Please solve the problems and refresh this page.');
         }
 
-        $zenkipay_dashboard = Configuration::get('ZENKIPAY_MODE') ? 'https://portal-uat.zenki.fi' : 'https://portal-dev.zenki.fi';
+        $zenkipay_dashboard = 'https://portal.zenki.fi';
 
         $this->context->smarty->assign([
             'zenkipay_form_link' => $_SERVER['REQUEST_URI'],
@@ -316,8 +314,6 @@ class Zenkipay extends PaymentModule
             return;
         }
 
-        $zenkipay_js_url = Configuration::get('ZENKIPAY_MODE') ? 'https://uat-resources.zenki.fi/zenkipay/script/zenkipay.js' : 'https://dev-resources.zenki.fi/zenkipay/script/zenkipay.js';
-
         if (
             Tools::getValue('module') === 'onepagecheckoutps' ||
             Tools::getValue('controller') === 'order-opc' ||
@@ -325,7 +321,7 @@ class Zenkipay extends PaymentModule
             Tools::getValue('controller') === 'order'
         ) {
             $this->context->controller->addCSS($this->_path . 'views/css/zenkipay-prestashop.css');
-            $this->context->controller->registerJavascript('remote-zenkipay-js', $zenkipay_js_url, ['position' => 'bottom', 'server' => 'remote']);
+            $this->context->controller->registerJavascript('remote-zenkipay-js', $this->js_url, ['position' => 'bottom', 'server' => 'remote']);
         }
     }
 
@@ -488,8 +484,7 @@ class Zenkipay extends PaymentModule
             return false;
         }
 
-        $zenkipay_js_url = Configuration::get('ZENKIPAY_MODE') ? 'https://uat-resources.zenki.fi/zenkipay/script/zenkipay.js' : 'https://dev-resources.zenki.fi/zenkipay/script/zenkipay.js';
-        $this->context->controller->registerJavascript('remote-zenkipay-js', $zenkipay_js_url, ['position' => 'bottom', 'server' => 'remote']);
+        $this->context->controller->registerJavascript('remote-zenkipay-js', $this->js_url, ['position' => 'bottom', 'server' => 'remote']);
 
         /** @var Order $order */
         $order = $params['order'];
@@ -589,7 +584,7 @@ class Zenkipay extends PaymentModule
     protected function getAccessToken()
     {
         $payload = Configuration::get('ZENKIPAY_MODE') ? Configuration::get('ZENKIPAY_PUBLIC_KEY_LIVE') : Configuration::get('ZENKIPAY_PUBLIC_KEY_TEST');
-        $url = Configuration::get('ZENKIPAY_MODE') ? $this->url . '/public/v1/merchants/plugin/token' : $this->sandbox_url . '/public/v1/merchants/plugin/token';
+        $url = $this->url . '/public/v1/merchants/plugin/token';
 
         if (strlen($payload) == 0) {
             return [];
@@ -626,7 +621,7 @@ class Zenkipay extends PaymentModule
     {
         try {
             $zenkipay_key = Configuration::get('ZENKIPAY_MODE') ? Configuration::get('ZENKIPAY_PUBLIC_KEY_LIVE') : Configuration::get('ZENKIPAY_PUBLIC_KEY_TEST');
-            $url = Configuration::get('ZENKIPAY_MODE') ? $this->url . '/v1/orders/' . $zenkipay_order_id : $this->sandbox_url . '/v1/orders/' . $zenkipay_order_id;
+            $url = $this->url . '/v1/orders/' . $zenkipay_order_id;
             $data = json_encode(['zenkipayKey' => $zenkipay_key, 'merchantOrderId' => $order_id]);
             $method = 'PATCH';
             $result = $this->customRequest($url, $method, $data);
@@ -644,7 +639,7 @@ class Zenkipay extends PaymentModule
     protected function handleTrackingNumber($data)
     {
         try {
-            $url = Configuration::get('ZENKIPAY_MODE') ? $this->api_url : $this->sandbox_api_url;
+            $url = $this->api_url;
             $method = 'POST';
 
             $result = $this->customRequest($url, $method, $data);
