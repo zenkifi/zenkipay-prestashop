@@ -45,7 +45,7 @@ class Zenkipay extends PaymentModule
 
         $this->name = 'zenkipay';
         $this->tab = 'payments_gateways';
-        $this->version = '1.4.0';
+        $this->version = '1.4.1';
         $this->author = 'PayByWallet, Inc';
         $this->webhook_signing_secret = Configuration::get('ZENKIPAY_WEBHOOK_SIGNING_SECRET');
 
@@ -639,7 +639,7 @@ class Zenkipay extends PaymentModule
     protected function handleTrackingNumber($data)
     {
         try {
-            $url = $this->api_url;
+            $url = $this->api_url . '/v1/api/tracking';
             $method = 'POST';
 
             $result = $this->customRequest($url, $method, $data);
