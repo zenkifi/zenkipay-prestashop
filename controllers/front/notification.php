@@ -47,7 +47,6 @@ class ZenkipayNotificationModuleFrontController extends ModuleFrontController
     public function initContent()
     {
         $payload = Tools::file_get_contents('php://input');
-        // $json = json_decode($payload);
 
         $headers = apache_request_headers();
         $svix_headers = [];
@@ -59,52 +58,47 @@ class ZenkipayNotificationModuleFrontController extends ModuleFrontController
         Logger::addLog('Webhook payload: ' . $payload, 1, null, null, null, true);
 
         try {
-            // $secret = $this->zenkipay->getWebhookSigningSecret();
-            // $wh = new Webhook($secret);
-            // $json = $wh->verify($payload, $svix_headers);
-            $json = json_decode($payload);
+            $secret = $this->zenkipay->getWebhookSigningSecret();
+            $wh = new Webhook($secret);
+            $json = $wh->verify($payload, $svix_headers);
 
-            Logger::addLog('Zenkipay - SVIX => ' . json_encode($json), 1, null, null, null, true);
-
-            if ($json->transactionStatus != 'COMPLETED') {
-                return;
+            if (!($decrypted_data = $this->zenkipay->RSADecyrpt($json->encryptedData))) {
+                throw new PrestaShopException('Unable to decrypt data.');
             }
 
-            if (!empty($json->merchantOrderId)) {
-                $discount = 10;
-                $order = new Order((int) $json->merchantOrderId);
-                $order_state = $order->getCurrentOrderState();
+            $event = json_decode($decrypted_data);
+            $payment = $event->eventDetails;
+
+            if ($payment->transactionStatus != 'COMPLETED' || !$payment->merchantOrderId) {
+                throw new PrestaShopException('Transaction status is not completed or merchantOrderId is empty.');
+            }
+
+            $order = new Order((int) $payment->merchantOrderId);
+            $order_state = $order->getCurrentOrderState();
+
+            if ($order_state && !$order_state->paid) {
+                $payments = $order->getOrderPaymentCollection();
+                if (isset($payments[0])) {
+                    $payments[0]->transaction_id = pSQL($payment->orderId);
+                    $payments[0]->save();
+                }
+
+                $order->setCurrentState((int) Configuration::get('PS_OS_PAYMENT'));
+
+                // Crypto love discount is added
                 $cart = new Cart((int) $order->id_cart);
-
-                $cart_rule = $this->createCartRule($cart, $discount);
+                $cart_rule = $this->createCartRule($cart, $payment->cryptoLoveFiatAmount);
                 $this->addDiscount($order, $cart, $cart_rule);
-
-                // if ($order_state && !$order_state->paid) {
-                //     $payments = $order->getOrderPaymentCollection();
-                //     foreach ($payments as $key => $payment) {
-                //         Logger::addLog('Webhook payment (' . $key . '): ' . json_encode($payment), 1, null, null, null, true);
-                //     }
-                //     if (isset($payments[0])) {
-                //         Logger::addLog('Webhook orderId => ' . $json->orderId, 1, null, null, null, true);
-                //         $payments[0]->transaction_id = pSQL($json->orderId);
-                //         $payments[0]->save();
-                //     }
-
-                //     $order->setCurrentState((int) Configuration::get('PS_OS_PAYMENT'));
-                // }
-            } else {
-                Logger::addLog('#Webhook NO ORDER', 1, null, null, null, true);
             }
         } catch (Exception $e) {
-            http_response_code(400);
             if (class_exists('Logger')) {
                 Logger::addLog('Webhook Notification - BAD REQUEST 400 - Request Body: ' . $e->getMessage(), 3, null, null, null, true);
                 Logger::addLog('Webhook Notification - BAD REQUEST 400 - Request Body: ' . $e->getLine(), 3, null, null, null, true);
             }
+            http_response_code(400);
             exit();
         }
 
-        // header('HTTP/1.1 200 OK');
         http_response_code(200);
         exit();
     }
