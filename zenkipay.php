@@ -559,7 +559,7 @@ class Zenkipay extends PaymentModule
 
         $purchase_data = [
             'version' => $this->purchase_data_version,
-            'zenkipayKey' => $this->rsa_private_key,
+            'zenkipayKey' => $pk,
             'merchantOrderId' => $order->id,
             'shopperEmail' => $shopperEmail,
             'shopperCartId' => $cart->id,
