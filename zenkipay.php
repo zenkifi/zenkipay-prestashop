@@ -36,18 +36,20 @@ class Zenkipay extends PaymentModule
     private $error = [];
     private $validation = [];
     private $webhook_signing_secret;
+    private $rsa_private_key;
+    private $purchase_data_version = 'v1.1.0';
+    private $api_url = 'https://api.zenki.fi';
+    private $url = 'https://prod-gateway.zenki.fi';
+    private $js_url = 'https://resources.zenki.fi/zenkipay/script/zenkipay.js';
 
     public function __construct()
     {
-        $this->api_url = 'https://api.zenki.fi';
-        $this->url = 'https://prod-gateway.zenki.fi';
-        $this->js_url = 'https://resources.zenki.fi/zenkipay/script/zenkipay.js';
-
         $this->name = 'zenkipay';
         $this->tab = 'payments_gateways';
-        $this->version = '1.4.1';
+        $this->version = '1.5.0';
         $this->author = 'PayByWallet, Inc';
         $this->webhook_signing_secret = Configuration::get('ZENKIPAY_WEBHOOK_SIGNING_SECRET');
+        $this->rsa_private_key = Configuration::get('ZENKIPAY_RSA_PRIVATE_KEY');
 
         parent::__construct();
         $warning = $this->l('Are you sure you want uninstall this module?');
@@ -73,6 +75,7 @@ class Zenkipay extends PaymentModule
             $this->registerHook('displayPaymentTop') &&
             $this->registerHook('paymentReturn') &&
             $this->registerHook('displayMobileHeader') &&
+            $this->registerHook('actionOrderStatusPostUpdate') &&
             $this->registerHook('actionAdminOrdersTrackingNumberUpdate') &&
             Configuration::updateValue('ZENKIPAY_MODE', 0) &&
             Configuration::updateValue('ZENKIPAY_PUBLIC_KEY_LIVE', '') &&
@@ -365,6 +368,40 @@ class Zenkipay extends PaymentModule
         }
     }
 
+    /**
+     * Realizar reembolso
+     *
+     * @link https://devdocs.prestashop.com/1.7/modules/concepts/hooks/list-of-hooks/
+     * @param type $params
+     * @return type
+     */
+    public function hookActionOrderStatusPostUpdate($params)
+    {
+        $order_id = $params['id_order'];
+        $new_order_state = $params['newOrderStatus'];
+
+        try {
+            $order = new Order((int) $order_id);
+            if ($order->payment != 'Zenkipay' && $new_order_state->id != Configuration::get('PS_OS_REFUND')) {
+                return;
+            }
+
+            $payment = $order->getOrderPayments();
+            $data = [
+                'title' => 'PrestaShop refund request #' . $order_id,
+                'description' => 'Refund request originated by PrestaShop.',
+                'orderId' => $payment[0]->transaction_id,
+            ];
+
+            $this->createDispute($data);
+        } catch (Exception $e) {
+            Logger::addLog('Zenkipay - hookActionOrderStatusPostUpdate getMessage ' . $e->getMessage(), 3, $e->getCode(), null, null, true);
+            Logger::addLog('Zenkipay - hookActionOrderStatusPostUpdate getLine ' . $e->getLine(), 3, $e->getCode(), null, null, true);
+        }
+
+        return;
+    }
+
     protected function generateForm($cart)
     {
         if (!empty($this->context->cookie->zenkipay_error)) {
@@ -521,6 +558,8 @@ class Zenkipay extends PaymentModule
         }
 
         $purchase_data = [
+            'version' => $this->purchase_data_version,
+            'zenkipayKey' => $pk,
             'merchantOrderId' => $order->id,
             'shopperEmail' => $shopperEmail,
             'shopperCartId' => $cart->id,
@@ -654,6 +693,24 @@ class Zenkipay extends PaymentModule
         }
     }
 
+    protected function createDispute($data)
+    {
+        try {
+            $url = $this->api_url . '/v1/api/disputes';
+            $method = 'POST';
+
+            $result = $this->customRequest($url, $method, $data);
+
+            Logger::addLog('Zenkipay - createDispute ' . $result, 1, null, null, null, true);
+
+            return true;
+        } catch (Exception $e) {
+            Logger::addLog('Zenkipay - createDispute: ' . $e->getMessage(), 1, null, 'Cart', (int) $this->context->cart->id, true);
+            Logger::addLog('Zenkipay - createDispute: ' . $e->getTraceAsString(), 4, $e->getCode(), 'Cart', (int) $this->context->cart->id, true);
+            return false;
+        }
+    }
+
     protected function customRequest($url, $method, $data)
     {
         $token_result = $this->getAccessToken();
@@ -740,5 +797,39 @@ class Zenkipay extends PaymentModule
     protected function formatNumber($value, $decimals = 2)
     {
         return number_format($value, $decimals, '.', '');
+    }
+
+    /**
+     * Decrypt message with RSA private key
+     *
+     * @param  base64_encoded string holds the encrypted message.
+     * @param  integer $chunk_size Chunking by bytes to feed to the decryptor algorithm (512).
+     *
+     * @return String decrypted message.
+     */
+    public function RSADecyrpt($encrypted_msg)
+    {
+        $ppk = openssl_pkey_get_private($this->rsa_private_key);
+        $encrypted_msg = base64_decode($encrypted_msg);
+
+        // Decrypt the data in the small chunks
+        $a_key = openssl_pkey_get_details($ppk);
+        $chunk_size = ceil($a_key['bits'] / 8);
+
+        $offset = 0;
+        $decrypted = '';
+
+        while ($offset < strlen($encrypted_msg)) {
+            $decrypted_chunk = '';
+            $chunk = substr($encrypted_msg, $offset, $chunk_size);
+
+            if (openssl_private_decrypt($chunk, $decrypted_chunk, $ppk)) {
+                $decrypted .= $decrypted_chunk;
+            } else {
+                throw new PrestaShopException('Problem decrypting the message.');
+            }
+            $offset += $chunk_size;
+        }
+        return $decrypted;
     }
 }

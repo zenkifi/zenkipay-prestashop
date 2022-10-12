@@ -47,7 +47,6 @@ class ZenkipayNotificationModuleFrontController extends ModuleFrontController
     public function initContent()
     {
         $payload = Tools::file_get_contents('php://input');
-        // $json = json_decode($payload);
 
         $headers = apache_request_headers();
         $svix_headers = [];
@@ -63,43 +62,112 @@ class ZenkipayNotificationModuleFrontController extends ModuleFrontController
             $wh = new Webhook($secret);
             $json = $wh->verify($payload, $svix_headers);
 
-            Logger::addLog('Zenkipay - SVIX => ' . json_encode($json), 1, null, null, null, true);
-
-            if ($json->transactionStatus != 'COMPLETED') {
-                return;
+            if (!($decrypted_data = $this->zenkipay->RSADecyrpt($json->encryptedData))) {
+                throw new PrestaShopException('Unable to decrypt data.');
             }
 
-            if (!empty($json->merchantOrderId)) {
-                $order = new Order((int) $json->merchantOrderId);
-                $order_state = $order->getCurrentOrderState();
+            $event = json_decode($decrypted_data);
+            $payment = $event->eventDetails;
 
-                if ($order_state && !$order_state->paid) {
-                    $payments = $order->getOrderPaymentCollection();
-                    foreach ($payments as $key => $payment) {
-                        Logger::addLog('Webhook payment (' . $key . '): ' . json_encode($payment), 1, null, null, null, true);
-                    }
-                    if (isset($payments[0])) {
-                        Logger::addLog('Webhook orderId => ' . $json->orderId, 1, null, null, null, true);
-                        $payments[0]->transaction_id = pSQL($json->orderId);
-                        $payments[0]->save();
-                    }
+            if ($payment->transactionStatus != 'COMPLETED' || !$payment->merchantOrderId) {
+                throw new PrestaShopException('Transaction status is not completed or merchantOrderId is empty.');
+            }
 
-                    $order->setCurrentState((int) Configuration::get('PS_OS_PAYMENT'));
+            $order = new Order((int) $payment->merchantOrderId);
+            $order_state = $order->getCurrentOrderState();
+
+            if ($order_state && !$order_state->paid) {
+                $payments = $order->getOrderPaymentCollection();
+                if (isset($payments[0])) {
+                    $payments[0]->transaction_id = pSQL($payment->orderId);
+                    $payments[0]->save();
                 }
-            } else {
-                Logger::addLog('#Webhook NO ORDER', 1, null, null, null, true);
+
+                $order->setCurrentState((int) Configuration::get('PS_OS_PAYMENT'));
+
+                // Crypto love discount is added
+                $cart = new Cart((int) $order->id_cart);
+                $cart_rule = $this->createCartRule($cart, $payment->cryptoLoveFiatAmount);
+                $this->addDiscount($order, $cart, $cart_rule);
             }
         } catch (Exception $e) {
-            http_response_code(400);
             if (class_exists('Logger')) {
                 Logger::addLog('Webhook Notification - BAD REQUEST 400 - Request Body: ' . $e->getMessage(), 3, null, null, null, true);
                 Logger::addLog('Webhook Notification - BAD REQUEST 400 - Request Body: ' . $e->getLine(), 3, null, null, null, true);
             }
+            http_response_code(400);
             exit();
         }
 
-        // header('HTTP/1.1 200 OK');
         http_response_code(200);
         exit();
+    }
+
+    protected function createCartRule($cart, $discount)
+    {
+        $cart_rule = new CartRule();
+        $language_ids = LanguageCore::getIDs(false);
+
+        foreach ($language_ids as $language_id) {
+            $cart_rule->name[$language_id] = $this->l('Zenkipay rule');
+            $cart_rule->description = $this->trans('Rule created automatically by Zenkipay');
+        }
+
+        $now = time();
+        $cart_rule->code = 'ZENKI' . $now;
+        $cart_rule->date_from = date('Y-m-d H:i:s', $now);
+        $cart_rule->date_to = date('Y-m-d H:i:s', strtotime('+1 minute'));
+        $cart_rule->reduction_amount = $discount;
+        $cart_rule->reduction_tax = true;
+        $cart_rule->reduction_currency = $cart->id_currency;
+        $cart_rule->add();
+
+        return $cart_rule;
+    }
+
+    protected function addDiscount($order, $cart, $cart_rule)
+    {
+        $cart->addCartRule($cart_rule->id);
+
+        $total_discounts = $cart_rule->reduction_amount;
+        $total_discounts_tax_incl = $cart_rule->reduction_amount;
+        $total_discounts_tax_excl = $cart_rule->reduction_amount;
+        $total_paid = $order->total_paid - $total_discounts;
+        $total_paid_tax_excl = $order->total_paid_tax_excl - $total_discounts_tax_excl;
+
+        Db::getInstance()->Execute(
+            'UPDATE ' .
+                _DB_PREFIX_ .
+                'orders  SET total_discounts = ' .
+                $total_discounts .
+                ', total_discounts_tax_incl = ' .
+                $total_discounts_tax_incl .
+                ', total_discounts_tax_excl = ' .
+                $total_discounts_tax_excl .
+                ', total_paid = ' .
+                $total_paid .
+                ', total_paid_tax_incl = ' .
+                $total_paid .
+                ', total_paid_tax_excl = ' .
+                $total_paid_tax_excl .
+                ', total_paid_real = ' .
+                $total_paid .
+                ' WHERE id_order = ' .
+                $order->id
+        );
+
+        Db::getInstance()->Execute(
+            'INSERT INTO ' .
+                _DB_PREFIX_ .
+                'order_cart_rule (`id_order`, `id_cart_rule`, `id_order_invoice`, `name`, `value`, `value_tax_excl`, `free_shipping`, `deleted`) VALUES (' .
+                $order->id .
+                ', ' .
+                $cart_rule->id .
+                ', "0", "Crypto Love", ' .
+                $total_discounts .
+                ', ' .
+                $total_discounts_tax_excl .
+                ', 0, 0)'
+        );
     }
 }
