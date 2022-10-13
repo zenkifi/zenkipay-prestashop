@@ -66,6 +66,7 @@ class ZenkipayNotificationModuleFrontController extends ModuleFrontController
                 throw new PrestaShopException('Unable to decrypt data.');
             }
 
+            Logger::addLog('#decrypted_data => ' . $decrypted_data, 1, null, null, null, true);
             $event = json_decode($decrypted_data);
             $payment = $event->eventDetails;
 
@@ -87,8 +88,11 @@ class ZenkipayNotificationModuleFrontController extends ModuleFrontController
 
                 // Crypto love discount is added
                 $cart = new Cart((int) $order->id_cart);
-                $cart_rule = $this->createCartRule($cart, $payment->cryptoLoveFiatAmount);
-                $this->addDiscount($order, $cart, $cart_rule);
+                $cryptoLoveFiatAmount = $payment->cryptoLoveFiatAmount;
+                if ($cryptoLoveFiatAmount > 0) {
+                    $cart_rule = $this->createCartRule($cart, $cryptoLoveFiatAmount);
+                    $this->addDiscount($order, $cart, $cart_rule);
+                }
             }
         } catch (Exception $e) {
             if (class_exists('Logger')) {
