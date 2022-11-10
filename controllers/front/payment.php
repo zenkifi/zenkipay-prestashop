@@ -50,6 +50,7 @@ class ZenkipayPaymentModuleFrontController extends ModuleFrontController
     public function validation()
     {
         $zenkipay = new Zenkipay();
+        Logger::addLog('validation' . $zenkipay->active, 3, null, null, null, true);
         if ($zenkipay->active) {
             $zenkipay->processPayment(Tools::getValue('zenkipay_trx_id'));
         } else {

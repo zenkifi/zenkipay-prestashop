@@ -88,11 +88,8 @@ class ZenkipayNotificationModuleFrontController extends ModuleFrontController
 
                 // Crypto love discount is added
                 $cart = new Cart((int) $order->id_cart);
-                $cryptoLoveFiatAmount = $payment->cryptoLoveFiatAmount;
-                if ($cryptoLoveFiatAmount > 0) {
-                    $cart_rule = $this->createCartRule($cart, $cryptoLoveFiatAmount);
-                    $this->addDiscount($order, $cart, $cart_rule);
-                }
+                $cart_rule = $this->createCartRule($cart, $payment->cryptoLoveFiatAmount);
+                $this->addDiscount($order, $cart, $cart_rule);
             }
         } catch (Exception $e) {
             if (class_exists('Logger')) {

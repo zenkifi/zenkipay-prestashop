@@ -28,7 +28,7 @@
 use PrestaShop\PrestaShop\Core\Payment\PaymentOption;
 use Zenkipay\Sdk;
 
-// require_once dirname(__FILE__) . '/lib/zenkipay/init.php';
+require_once dirname(__FILE__) . '/lib/zenkipay/init.php';
 
 if (!defined('_PS_VERSION_')) {
     exit();
@@ -292,7 +292,7 @@ class Zenkipay extends PaymentModule
      *
      * @return string HTML/JS Content
      */
-    public function hookHeader($params)
+    public function hookHeader()
     {
         if (!$this->active) {
             return;
@@ -548,9 +548,9 @@ class Zenkipay extends PaymentModule
             'serviceType' => $this->getServiceType($service_types),
             'merchantOrderId' => $order->id,
             'shopperEmail' => $shopperEmail,
-            'shopperCartId' => $cart->id,
+            // 'shopperCartId' => $cart->id,
             'items' => $formatted_products,
-            'country' => $country->iso_code,
+            // 'country' => $country->iso_code,
             'purchaseSummary' => [
                 'currency' => $currency,
                 'totalItemsAmount' => $this->formatNumber($summary['total_products']), // without taxes
@@ -563,18 +563,24 @@ class Zenkipay extends PaymentModule
                 'importCosts' => 0,
             ],
         ];
-
-        $payload = json_encode($purchase_data);
+        // $payload = json_encode($purchase_data);
 
         $data = [
-            'js_dir' => _PS_JS_DIR_,
-            'purchase_data' => $payload,
+          'countryCode' => $country->iso_code,
+          'purchaseData' => $purchase_data,
         ];
 
-        //? Aquí se haría el create de la orden ?
         $zenkipay_order = $zenkipay->orders()->create($data);
 
-        $this->context->smarty->assign($data);
+        Logger::addLog('zenkipay_order'.$zenkipay_order->orderId, 3, null, null, null, true);
+
+        $orderData = [
+            'js_dir' => _PS_JS_DIR_,
+            'order_id' => $zenkipay_order->orderId,
+            'payment_signature' => $zenkipay_order->paymentSignature,
+        ];
+
+        $this->context->smarty->assign($orderData);
 
         $template = './views/templates/hook/order_confirmation.tpl';
 
@@ -593,12 +599,19 @@ class Zenkipay extends PaymentModule
      */
     protected function validateZenkipayKey()
     {
+        Logger::addLog('ValidateZenkipayKey -2 ZENKIPAY_API_KEY' . Configuration::get('ZENKIPAY_API_KEY'), 1, null, null, null, true);
+        Logger::addLog('ValidateZenkipayKey -2 ZENKIPAY_SECRET_KEY' . Configuration::get('ZENKIPAY_SECRET_KEY'), 1, null, null, null, true);
         $zenkipay = new Sdk(Configuration::get('ZENKIPAY_API_KEY'), Configuration::get('ZENKIPAY_SECRET_KEY'));
         $result = $zenkipay->getAccessToken();
-
         // $result = $this->getAccessToken();
-        if (array_key_exists('access_token', $result)) {
-            return true;
+
+        Logger::addLog('ValidateZenkipayKey -  getAccessToken' . $result, 1, null, null, null, true);
+
+        // Se valida que la respuesta sea un JWT
+        $regex = preg_match('/^([a-zA-Z0-9_=]+)\.([a-zA-Z0-9_=]+)\.([a-zA-Z0-9_\-\+\/=]*)/', $result);
+
+        if ($regex == 1) {
+          return true;
         }
 
         return false;
@@ -667,6 +680,7 @@ class Zenkipay extends PaymentModule
     protected function handleTrackingNumber($data)
     {
         try {
+            // $zenkipay = new Sdk(Configuration::get('ZENKIPAY_API_KEY'), Configuration::get('ZENKIPAY_SECRET_KEY'));
             $zenkipay = new Sdk(Configuration::get('ZENKIPAY_API_KEY'), Configuration::get('ZENKIPAY_SECRET_KEY'));
             $result = $zenkipay->trackingNumbers()->create($data);
 
@@ -687,6 +701,7 @@ class Zenkipay extends PaymentModule
     protected function createDispute($data)
     {
         try {
+            // $zenkipay = new Sdk(Configuration::get('ZENKIPAY_API_KEY'), Configuration::get('ZENKIPAY_SECRET_KEY'));
             $zenkipay = new Sdk(Configuration::get('ZENKIPAY_API_KEY'), Configuration::get('ZENKIPAY_SECRET_KEY'));
             $result = $zenkipay->disputes()->create($data);
 
@@ -708,15 +723,16 @@ class Zenkipay extends PaymentModule
     {
         $zenkipay = new Sdk(Configuration::get('ZENKIPAY_API_KEY'), Configuration::get('ZENKIPAY_SECRET_KEY'));
         $token_result = $zenkipay->getAccessToken();
+        $regex = preg_match('/^([a-zA-Z0-9_=]+)\.([a-zA-Z0-9_=]+)\.([a-zA-Z0-9_\-\+\/=]*)/', $token_result);
 
         // $token_result = $this->getAccessToken();
 
-        if (!array_key_exists('access_token', $token_result)) {
+        if ($regex != 1) {
             Logger::addLog('Zenkipay - customRequest: Error al obtener access_token ', 3, null, null, null, true);
             throw new PrestaShopException('Invalid access token');
         }
 
-        $headers = ['Accept: */*', 'Content-Type: application/json', 'Authorization: Bearer ' . $token_result['access_token']];
+        $headers = ['Accept: */*', 'Content-Type: application/json', 'Authorization: Bearer ' . $token_result];
 
         $ch = curl_init();
         curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));

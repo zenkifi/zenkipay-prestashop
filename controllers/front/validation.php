@@ -59,6 +59,7 @@ class ZenkipayValidationModuleFrontController extends ModuleFrontController
         }
 
         $zenkipay = new Zenkipay();
+        Logger::addLog('postProcess' . $zenkipay->active, 3, null, null, null, true);
         $zenkipay->processPayment(Tools::getValue('zenkipay_trx_id'));
     }
 }
