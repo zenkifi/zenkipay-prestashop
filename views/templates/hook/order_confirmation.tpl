@@ -33,20 +33,16 @@
 
 
 <script type="text/javascript">    
-    jQuery(document).ready(function() {                     
-        var zenkipayKey = "{$pk|escape:'htmlall':'UTF-8'}";
-        var purchaseSignature = "{$signature|escape:'htmlall':'UTF-8'}";
-        var purchaseData = {$purchase_data|@json_encode nofilter};    
+    jQuery(document).ready(function() {                             
+        var orderId = {$order_id|@json_encode nofilter};  
+        var paymentSignature = {$payment_signature|@json_encode nofilter};  
 
         var purchaseOptions = {            
-            zenkipayKey,          
-            purchaseData,  
-            purchaseSignature,
-            style: {
-                shape: 'square',
-                theme: 'light',
-            },
-        };                                                                    
+            orderId,
+            paymentSignature,
+        };                                
+
+        console.log('openModal', purchaseOptions)                                    
                                 
         zenkiPay.openModal(purchaseOptions, handleZenkipayEvents);                                  
     });    
