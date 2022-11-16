@@ -36,11 +36,9 @@ class Zenkipay extends PaymentModule
     private $error = [];
     private $validation = [];
     private $webhook_signing_secret;
-    private $purchase_data_version = 'v1.1.0';
+    private $purchase_data_version = 'v1.0.0';
     private $api_url = 'https://dev-api.zenki.fi';
-    private $api_url_auth = 'https://dev-auth.zenki.fi';
-    private $url = 'https://dev-gateway.zenki.fi';
-    private $js_url = 'https://dev-resources.zenki.fi/zenkipay/script/zenkipay.js';
+    private $js_url = 'https://dev-resources.zenki.fi/zenkipay/script/v2/zenkipay.js';
 
     public function __construct()
     {
@@ -109,7 +107,6 @@ class Zenkipay extends PaymentModule
             $order = $params['order'];
             if ($order->payment == 'Zenkipay' && $order->getCurrentState() == Configuration::get('PS_OS_PAYMENT')) {
                 $payment = $order->getOrderPayments();
-
                 $data = [
                   'courier_type' => 'EXTERNAL',
                   'tracking_id' => $order->shipping_number,
@@ -373,7 +370,6 @@ class Zenkipay extends PaymentModule
                 'reason' => 'Refund request originated by PrestaShop.',
             ];
 
-            // $this->createDispute($data);
             $this->createRefund($payment[0]->transaction_id, $data);
         } catch (Exception $e) {
             Logger::addLog('Zenkipay - hookActionOrderStatusPostUpdate getMessage ' . $e->getMessage(), 3, $e->getCode(), null, null, true);
@@ -549,17 +545,15 @@ class Zenkipay extends PaymentModule
 
         $purchase_data = [
             'version' => $this->purchase_data_version,
-            'type' => $this->getOrderType($items_types),
             'order_id' => $order->id,
+            'cart_id' => $cart->id,
+            'type' => $this->getOrderType($items_types),
+            'country_code_iso2' => $country->iso_code,
             'shopper' => [
                 'email' => $shopperEmail,
             ],
-            'cart_id' => $cart->id,
-            'country_code_iso' => $country->iso_code,
-            'placed_at' => time(),
-            'items' => $formatted_products,
             'breakdown' => [
-                'currency_code_iso' => $currency,
+                'currency_code_iso3' => $currency,
                 'total_items_amount' => $this->formatNumber($summary['total_products']), // without taxes
                 'shipment_amount' => $this->formatNumber($summary['total_shipping_tax_exc']), // without taxes
                 'subtotal_amount' => $this->formatNumber($summary['total_price_without_tax']), // without taxes
@@ -569,23 +563,17 @@ class Zenkipay extends PaymentModule
                 'discount_amount' => $this->formatNumber($summary['total_discounts']),
                 'grand_total_amount' => $this->formatNumber($cart->getOrderTotal()),
             ],
+            'items' => $formatted_products,
         ];
 
-        $data = [
-          'countryCode' => $country->iso_code,
-          'purchaseData' => $purchase_data,
-        ];
+        $zenkipay_order = json_decode($this->createOrder($purchase_data));
 
-        Logger::addLog('Zenkipay - PRE createOrder ' . $country->iso_code, 1, null, null, null, true);
-
-        $zenkipay_order = $this->createOrder($data);
-
-        Logger::addLog('Zenkipay - createdOrder ' . json_encode($zenkipay_order), 1, null, null, null, true);
+        Logger::addLog('Zenkipay - createdOrder Response: ' . $zenkipay_order->zenki_order_id, 1, null, null, null, true);
 
         $data = [
             'js_dir' => _PS_JS_DIR_,
-            'order_id' => $zenkipay_order->orderId,
-            'payment_signature' => $zenkipay_order->paymentSignature,
+            'zenki_order_id' => $zenkipay_order->zenki_order_id,
+            'payment_signature' => $zenkipay_order->payment_signature,
         ];
 
         $this->context->smarty->assign($data);
@@ -622,7 +610,6 @@ class Zenkipay extends PaymentModule
      */
     protected function getAccessToken()
     {
-      
       $client_id = Configuration::get('ZENKIPAY_API_KEY');
       $client_secret = Configuration::get('ZENKIPAY_SECRET_KEY');
 
@@ -651,8 +638,6 @@ class Zenkipay extends PaymentModule
             return [];
         }
 
-        Logger::addLog('GetAccesToken - before json_decode' . $result, 1, null, null, null, true);
-
         curl_close($ch);
         return json_decode($result, true);
     }
@@ -669,7 +654,7 @@ class Zenkipay extends PaymentModule
     {
         try {
             $zenkipay_key = Configuration::get('ZENKIPAY_API_KEY');
-            $url = $this->url . '/v1/orders/' . $zenkipay_order_id;
+            $url = $this->api_url . '/v1/pay/orders/' . $zenkipay_order_id;
             $data = json_encode(['zenkipayKey' => $zenkipay_key, 'merchantOrderId' => $order_id]);
             $method = 'PATCH';
             $result = $this->customRequest($url, $method, $data);
@@ -763,7 +748,6 @@ class Zenkipay extends PaymentModule
 
         $token_result = $this->getAccessToken();
 
-        
         if (!array_key_exists('access_token', $token_result)) {
           Logger::addLog('Zenkipay - customRequest: Error al obtener access_token ', 3, null, null, null, true);
           throw new PrestaShopException('Invalid access token');

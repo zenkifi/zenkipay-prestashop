@@ -31,22 +31,20 @@
     </div>
 </div> 
 
-
 <script type="text/javascript">    
-    jQuery(document).ready(function() {                             
-        var orderId = {$order_id|@json_encode nofilter};  
-        var paymentSignature = {$payment_signature|@json_encode nofilter};  
+    jQuery(document).ready(function() {
+        var orderId = '{$zenki_order_id}';  
+        var paymentSignature = '{$payment_signature}';
 
         var purchaseOptions = {            
             orderId,
             paymentSignature,
         };                                
 
-        console.log('openModal', purchaseOptions)                                    
+        console.log('openModal', purchaseOptions);                                   
                                 
-        zenkiPay.openModal(purchaseOptions, handleZenkipayEvents);                                  
+        zenkipay.openModal(purchaseOptions, handleZenkipayEvents);                                  
     });    
-
 
     var handleZenkipayEvents = function (error, data, details) {            
         if (!error && details.postMsgType === 'done') {            
