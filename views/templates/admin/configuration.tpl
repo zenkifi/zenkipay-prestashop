@@ -1,12 +1,12 @@
 {*
-* 2007-2015 PrestaShop
+* 2007-2022 PrestaShop
 *
 * NOTICE OF LICENSE
 *
-* This source file is subject to the Open Software License (OSL 3.0)
+* This source file is subject to the Academic Free License (AFL 3.0)
 * that is bundled with this package in the file LICENSE.txt.
 * It is also available through the world-wide-web at this URL:
-* http://opensource.org/licenses/osl-3.0.php
+* http://opensource.org/licenses/afl-3.0.php
 * If you did not receive a copy of the license and are unable to
 * obtain it through the world-wide-web, please send an email
 * to license@prestashop.com so we can send you a copy immediately.
@@ -18,10 +18,11 @@
 * needs please refer to http://www.prestashop.com for more information.
 *
 *  @author    PrestaShop SA <contact@prestashop.com>
-*  @copyright 2007-2015 PrestaShop SA
-*  @license   http://opensource.org/licenses/osl-3.0.php  Open Software License (OSL 3.0)
+*  @copyright 2007-2022 PrestaShop SA
+*  @license   http://opensource.org/licenses/afl-3.0.php  Academic Free License (AFL 3.0)
 *  International Registered Trademark & Property of PrestaShop SA
 *}
+
     <div class="zenkipay-module-wrapper">
         <div class="zenkipay-module-header">
             <a href="https://zenki.fi/" target="_blank" rel="external">
@@ -76,27 +77,29 @@
                         <td align="center" valign="middle" colspan="2">
                             <table cellspacing="0" cellpadding="0" class="innerTable">
                                 <tr>
-                                    <td>{l s='Sandbox Zenkipay key' mod='zenkipay'}</td>
+                                    <td>{l s='API key' mod='zenkipay'}</td>
                                     <td>
                                         <input
                                             autocomplete="off"
                                             type="text"
-                                            id="zenkipay_public_key_test"
-                                            name="zenkipay_public_key_test"
-                                            value="{if $zenkipay_configuration.ZENKIPAY_PUBLIC_KEY_TEST}{$zenkipay_configuration.ZENKIPAY_PUBLIC_KEY_TEST|escape:'htmlall':'UTF-8'}{/if}"
+                                            id="zenkipay_api_key"
+                                            name="zenkipay_api_key"
+                                            value="{if $zenkipay_configuration.ZENKIPAY_API_KEY}{$zenkipay_configuration.ZENKIPAY_API_KEY|escape:'htmlall':'UTF-8'}{/if}"
                                         />
+                                        <p>{l s='You must change this value if you switch your environment from production to testing.' mod='zenkipay'}</i></b></p>
                                     </td>
                                 </tr>
                                 <tr>
-                                    <td>{l s='Live Zenkipay key' mod='zenkipay'}</td>
+                                    <td>{l s='Secret key' mod='zenkipay'}</td>
                                     <td>
                                         <input
                                             autocomplete="off"
-                                            type="text"
-                                            id="zenkipay_public_key_live"
-                                            name="zenkipay_public_key_live"
-                                            value="{if $zenkipay_configuration.ZENKIPAY_PUBLIC_KEY_LIVE}{$zenkipay_configuration.ZENKIPAY_PUBLIC_KEY_LIVE|escape:'htmlall':'UTF-8'}{/if}"
+                                            type="password"
+                                            id="zenkipay_secret_key"
+                                            name="zenkipay_secret_key"
+                                            value="{if $zenkipay_configuration.ZENKIPAY_SECRET_KEY}{$zenkipay_configuration.ZENKIPAY_SECRET_KEY|escape:'htmlall':'UTF-8'}{/if}"
                                         />
+                                        <p>{l s='You must change this value if you switch your environment from production to testing.' mod='zenkipay'}</i></b></p>
                                     </td>                                    
                                 </tr>
                                 <tr>
@@ -112,14 +115,7 @@
                                         />
                                         <p>{l s='You can get this secret from your Zenkipay Dashboard: Configurations > Webhooks.' mod='zenkipay'}</i></b></p>
                                     </td>                                    
-                                </tr>
-                                <tr>
-                                    <td>{l s='RSA private key' mod='zenkipay'}</td>
-                                    <td>
-                                        <textarea rows="20" cols="75" id="zenkipay_rsa_private_key" name="zenkipay_rsa_private_key">{if $zenkipay_configuration.ZENKIPAY_RSA_PRIVATE_KEY}{$zenkipay_configuration.ZENKIPAY_RSA_PRIVATE_KEY|escape:'htmlall':'UTF-8'}{/if}</textarea>
-                                        <p>{l s='Copy and paste your private key here with: "cat /path/to/your/private-key.pem | pbcopy".' mod='zenkipay'}</i></b></p>
-                                    </td>                                    
-                                </tr>
+                                </tr>                               
                             </table>
                         </td>
                     </tr>
@@ -131,23 +127,3 @@
         </form>
         <div class="clear"></div>
     </div>
-
-<script type="text/javascript">    
-    $(document).ready(function() {             
-        var handleDisableInputs = function () {
-            if( $('#zenkipay_mode_off').is(':checked') ){
-                $('#zenkipay_public_key_test').prop('readonly', false); 
-                $('#zenkipay_public_key_live').prop('readonly', true); 
-            } else{
-                $('#zenkipay_public_key_live').prop('readonly', false); 
-                $('#zenkipay_public_key_test').prop('readonly', true); 
-            }
-        }        
-
-        $('input[name=zenkipay_mode]').on('change', function() {            
-            handleDisableInputs();
-        });
-
-        handleDisableInputs();
-    });
-</script>    
