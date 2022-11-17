@@ -2,7 +2,7 @@
 <module>
     <name>zenkipay</name>
     <displayName><![CDATA[Zenkipay]]></displayName>
-    <version><![CDATA[1.5.0]]></version>
+    <version><![CDATA[1.6.0]]></version>
     <description><![CDATA[Accept cryptos from any wallet, any coin at your check out page]]></description>
     <author><![CDATA[PayByWallet, Inc]]></author>
     <tab><![CDATA[payments_gateways]]></tab>
