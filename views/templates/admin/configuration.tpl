@@ -35,34 +35,19 @@
             <legend><img src="{$module_dir|escape:'htmlall':'UTF-8'}views/img/checks-icon.gif" alt="" />{l s='Technical check' mod='zenkipay'}</legend>
             <div class="conf">{$zenkipay_validation_title|escape:'htmlall':'UTF-8'}</div>
             <table cellspacing="0" cellpadding="0" class="zenkipay-technical">
-                {if $zenkipay_validation} {foreach from=$zenkipay_validation item=validation}
+                {if $zenkipay_validation} 
+                {foreach from=$zenkipay_validation item=validation}
                 <tr>
                     <td>
                         <img src="{$module_dir|escape:'htmlall':'UTF-8'}views/img/{($validation['result']|escape:'htmlall':'UTF-8') ? 'tick' : 'close'}.png" alt="" style="height: 25px" />
                     </td>
                     <td>{$validation['name']|escape:'htmlall':'UTF-8'}</td>
                 </tr>
-                {/foreach} {/if}
+                {/foreach} 
+                {/if}
             </table>
         </fieldset>
-        <br />
-
-        {if $zenkipay_error}
-        <fieldset>
-            <legend>{l s='Errors' mod='zenkipay'}</legend>
-            <table cellspacing="0" cellpadding="0" class="zenkipay-technical">
-                <tbody>
-                    {foreach from=$zenkipay_error item=error}
-                    <tr>
-                        <td><img src="{$module_dir|escape:'htmlall':'UTF-8'}views/img/close.png" alt="" style="height: 25px" /></td>
-                        <td>{$error|escape:'htmlall':'UTF-8'}</td>
-                    </tr>
-                    {/foreach}
-                </tbody>
-            </table>
-        </fieldset>
-        <br />
-        {/if}
+        <br />      
 
         <form action="{$zenkipay_form_link|escape:'htmlall':'UTF-8'}" method="post">
             <fieldset class="zenkipay-settings">

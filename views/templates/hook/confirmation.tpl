@@ -22,9 +22,6 @@
 *  @license   http://opensource.org/licenses/afl-3.0.php  Academic Free License (AFL 3.0)
 *  International Registered Trademark & Property of PrestaShop SA
 *}
-
-<script type="text/javascript" src="{$js_dir}jquery/jquery-1.11.0.min.js"></script>
-
 <div id="zenkipay-container" class="payment_module">
     <div class="zenkipay-form-container" >    
         <div class="zenkipay-payment-errors"></div>                
@@ -32,9 +29,9 @@
 </div> 
 
 <script type="text/javascript">    
-    jQuery(document).ready(function() {
-        var orderId = '{$zenki_order_id}';  
-        var paymentSignature = '{$payment_signature}';
+    $(document).ready(function() {
+        var orderId = "{$zenki_order_id|escape:'htmlall':'UTF-8'}";  
+        var paymentSignature = "{$payment_signature|escape:'htmlall':'UTF-8'}";
 
         var purchaseOptions = {            
             orderId,

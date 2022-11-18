@@ -23,4 +23,11 @@
 *  International Registered Trademark & Property of PrestaShop SA
 *}
 
-<script type="text/javascript" src="{$js_dir}jquery/jquery-1.11.0.min.js"></script>
+<div>
+	<h3>{l s='An error occurred' mod='zenkipay'}:</h3>
+	<ul class="alert alert-danger">
+		{foreach from=$errors item='error'}
+			<li>{$error|escape:'htmlall':'UTF-8'}.</li>
+		{/foreach}
+	</ul>
+</div>

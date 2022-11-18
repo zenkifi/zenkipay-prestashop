@@ -26,7 +26,7 @@
 <div id="zenkipay-container" class="payment_module">
     <div class="zenkipay-form-container" >    
         <img src="{$module_dir|escape:'htmlall':'UTF-8'}views/img/logo.png" alt="Zenkipay" class="zenkipay-logo"/>                   
-        <form action="{$action}" id="zenkipay-payment-form" method="post" class="zenkipay-payment-form">              
+        <form action="{$action|escape:'htmlall':'UTF-8'}" id="zenkipay-payment-form" method="post" class="zenkipay-payment-form">              
             <h3 class="zenkipay_title mb10">{l s='Pay with cryptos… any wallet, any coin!. Transaction 100% secured.' mod='zenkipay'}</h3>
             <p>{l s='Zenkipay´s latest, most complete cryptocurrency payment processing solution. Accept any crypto coin with over 150 wallets around the world.' mod='zenkipay'}</p>
             
