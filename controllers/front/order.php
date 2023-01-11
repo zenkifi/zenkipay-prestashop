@@ -23,36 +23,33 @@
  *  @license   http://opensource.org/licenses/afl-3.0.php  Academic Free License (AFL 3.0)
  *  International Registered Trademark & Property of PrestaShop SA
  */
-
-namespace Svix;
-
-final class TestPayload
+class ZenkipayOrderModuleFrontController extends ModuleFrontController
 {
-    private const DEFAULT_MSG_ID = 'msg_p5jXN8AQM9LWM0D4loKWxJek';
-    private const DEFAULT_PAYLOAD = '{"test": 2432232315}';
-    private const DEFAULT_SECRET = 'MfKQ9r8GKYqrTwjUPD8ILPZIo2LaLaSw';
-
-    public $id;
-    public $timestamp;
-    public $payload;
-    public $secret;
-    public $header;
-
-    public function __construct(int $timestamp)
+    public function initContent()
     {
-        $this->id = self::DEFAULT_MSG_ID;
-        $this->timestamp = strval($timestamp);
+        parent::initContent();
+        $this->ajax = true;
+    }
 
-        $this->payload = self::DEFAULT_PAYLOAD;
-        $this->secret = self::DEFAULT_SECRET;
+    public function displayAjax()
+    {
+        $cart_id = Tools::getValue('cart_id');
+        Logger::addLog('#cart_id => ' . $cart_id, 1, null, 'Cart', (int) $this->context->cart->id, true);
 
-        $toSign = "{$this->id}.{$this->timestamp}.{$this->payload}";
-        $signature = base64_encode(pack('H*', hash_hmac('sha256', $toSign, base64_decode($this->secret))));
+        try {
+            $zenkipay = new Zenkipay();
+            $response = $zenkipay->createOrder();
+        } catch (Exception $e) {
+            Logger::addLog('Zenkipay - createOrder getMessage ' . $e->getMessage(), 3, $e->getCode(), null, null, true);
+            Logger::addLog('Zenkipay - createOrder getLine ' . $e->getLine(), 3, $e->getCode(), null, null, true);
 
-        $this->header = [
-            'svix-id' => $this->id,
-            'svix-signature' => "v1,{$signature}",
-            'svix-timestamp' => $this->timestamp,
-        ];
+            $response = [
+                'error' => true,
+                'message' => 'An unexpected error has occurred',
+            ];
+        }
+
+        echo json_encode($response);
+        exit;
     }
 }
