@@ -1,14 +1,13 @@
 <?php
-
 /**
- * 2007-2015 PrestaShop
+ * 2007-2023 PrestaShop
  *
  * NOTICE OF LICENSE
  *
- * This source file is subject to the Open Software License (OSL 3.0)
+ * This source file is subject to the Academic Free License (AFL 3.0)
  * that is bundled with this package in the file LICENSE.txt.
  * It is also available through the world-wide-web at this URL:
- * http://opensource.org/licenses/osl-3.0.php
+ * http://opensource.org/licenses/afl-3.0.php
  * If you did not receive a copy of the license and are unable to
  * obtain it through the world-wide-web, please send an email
  * to license@prestashop.com so we can send you a copy immediately.
@@ -20,68 +19,62 @@
  * needs please refer to http://www.prestashop.com for more information.
  *
  *  @author    PrestaShop SA <contact@prestashop.com>
- *  @copyright 2007-2015 PrestaShop SA
- *  @license   http://opensource.org/licenses/osl-3.0.php  Open Software License (OSL 3.0)
+ *  @copyright 2007-2023 PrestaShop SA
+ *  @license   http://opensource.org/licenses/afl-3.0.php  Academic Free License (AFL 3.0)
  *  International Registered Trademark & Property of PrestaShop SA
  */
 
 use PrestaShop\PrestaShop\Core\Payment\PaymentOption;
 
 if (!defined('_PS_VERSION_')) {
-    exit();
+    exit;
 }
 
 class Zenkipay extends PaymentModule
 {
-    private $error = [];
-    private $validation = [];
-    private $webhook_signing_secret;
-    private $rsa_private_key;
-    private $purchase_data_version = 'v1.1.0';
-    private $api_url = 'https://api.zenki.fi';
-    private $url = 'https://prod-gateway.zenki.fi';
-    private $js_url = 'https://resources.zenki.fi/zenkipay/script/zenkipay.js';
+    protected $purchase_data_version = 'v1.0.0';
+    protected $api_url = 'https://api.zenki.fi';
+    protected $js_url = 'https://resources.zenki.fi/zenkipay/script/v2/zenkipay.js';
 
     public function __construct()
     {
         $this->name = 'zenkipay';
         $this->tab = 'payments_gateways';
-        $this->version = '1.5.0';
+        $this->version = '2.1.0';
         $this->author = 'PayByWallet, Inc';
-        $this->webhook_signing_secret = Configuration::get('ZENKIPAY_WEBHOOK_SIGNING_SECRET');
-        $this->rsa_private_key = Configuration::get('ZENKIPAY_RSA_PRIVATE_KEY');
+        $this->module_key = 'df41f70b22ceb53e7a971bf132e0cbc1';
 
         parent::__construct();
-        $warning = $this->l('Are you sure you want uninstall this module?');
+
         $this->displayName = 'Zenkipay';
-        $this->description = $this->l('Accept cryptos from any wallet, any coin at your check out page!');
-        $this->confirmUninstall = $this->l($warning);
+        $this->description = $this->l('Accept cryptos from any wallet, any coin at your check out page');
+        $this->confirmUninstall = $this->l('Are you sure you want uninstall this module?');
         $this->ps_versions_compliancy = ['min' => '1.7', 'max' => _PS_VERSION_];
     }
 
     /**
      * Zenkipay's module installation
      *
-     * @return boolean Install result
+     * @return bool Install result
      */
     public function install()
     {
         $ret =
             parent::install() &&
             $this->createPendingState() &&
-            $this->registerHook('payment') &&
             $this->registerHook('paymentOptions') &&
-            $this->registerHook('displayHeader') &&
-            $this->registerHook('displayPaymentTop') &&
+            $this->registerHook('header') &&
             $this->registerHook('paymentReturn') &&
-            $this->registerHook('displayMobileHeader') &&
             $this->registerHook('actionOrderStatusPostUpdate') &&
             $this->registerHook('actionAdminOrdersTrackingNumberUpdate') &&
-            Configuration::updateValue('ZENKIPAY_MODE', 0) &&
-            Configuration::updateValue('ZENKIPAY_PUBLIC_KEY_LIVE', '') &&
-            Configuration::updateValue('ZENKIPAY_PUBLIC_KEY_TEST', '') &&
-            Configuration::updateValue('ZENKIPAY_RSA_PRIVATE_KEY', '') &&
-            Configuration::updateValue('ZENKIPAY_WEBHOOK_SIGNING_SECRET', '');
+            Configuration::updateValue('ZENKIPAY_MODE', true) &&
+            Configuration::updateValue('ZENKIPAY_SYNC_CODE', '') &&
+            Configuration::updateValue('ZENKIPAY_API_KEY_LIVE', '') &&
+            Configuration::updateValue('ZENKIPAY_SECRET_KEY_LIVE', '') &&
+            Configuration::updateValue('ZENKIPAY_WHSEC_LIVE', '') &&
+            Configuration::updateValue('ZENKIPAY_API_KEY_TEST', '') &&
+            Configuration::updateValue('ZENKIPAY_SECRET_KEY_TEST', '') &&
+            Configuration::updateValue('ZENKIPAY_WHSEC_TEST', '');
 
         return $ret;
     }
@@ -89,11 +82,24 @@ class Zenkipay extends PaymentModule
     /**
      * Zenkipay's module uninstallation (Configuration values, database tables...)
      *
-     * @return boolean Uninstall result
+     * @return bool Uninstall result
      */
     public function uninstall()
     {
-        return parent::uninstall() && Configuration::deleteByName('ZENKIPAY_PUBLIC_KEY_LIVE') && Configuration::deleteByName('ZENKIPAY_PUBLIC_KEY_TEST');
+        $order_status = (int) Configuration::get('PS_OS_ZENKIPAY_PAYMENT');
+        $order_state = new OrderState($order_status);
+        $order_state->delete();
+
+        return parent::uninstall() &&
+            Configuration::deleteByName('ZENKIPAY_MODE') &&
+            Configuration::deleteByName('ZENKIPAY_SYNC_CODE') &&
+            Configuration::deleteByName('ZENKIPAY_API_KEY_LIVE') &&
+            Configuration::deleteByName('ZENKIPAY_SECRET_KEY_LIVE') &&
+            Configuration::deleteByName('ZENKIPAY_WHSEC_LIVE') &&
+            Configuration::deleteByName('ZENKIPAY_API_KEY_TEST') &&
+            Configuration::deleteByName('ZENKIPAY_SECRET_KEY_TEST') &&
+            Configuration::deleteByName('ZENKIPAY_WHSEC_TEST') &&
+            Configuration::deleteByName('PS_OS_ZENKIPAY_PAYMENT');
     }
 
     /**
@@ -108,73 +114,15 @@ class Zenkipay extends PaymentModule
             $order = $params['order'];
             if ($order->payment == 'Zenkipay' && $order->getCurrentState() == Configuration::get('PS_OS_PAYMENT')) {
                 $payment = $order->getOrderPayments();
-
-                $data = [['orderId' => $payment[0]->transaction_id, 'merchantOrderId' => $order->id, 'trackingId' => $order->shipping_number]];
-                $this->handleTrackingNumber($data);
+                $data = [
+                    'courierType' => 'EXTERNAL',
+                    'trackingId' => $order->shipping_number,
+                ];
+                $this->handleTrackingNumber($payment[0]->transaction_id, $data);
             }
         } catch (Exception $e) {
             Logger::addLog('Zenkipay - TrackingNumberUpdate getMessage ' . $e->getMessage(), 3, $e->getCode(), null, null, true);
-            Logger::addLog('Zenkipay - TrackingNumberUpdate getLine ' . $e->getLine(), 3, $e->getCode(), null, null, true);
         }
-    }
-
-    /**
-     * Check settings requirements to make sure the Zenkipay's module will work properly
-     *
-     * @return boolean Check result
-     */
-    public function checkSettings()
-    {
-        if (Configuration::get('ZENKIPAY_MODE')) {
-            return Configuration::get('ZENKIPAY_PUBLIC_KEY_LIVE') != '' && Configuration::get('ZENKIPAY_PRIVATE_KEY_LIVE') != '';
-        } else {
-            return Configuration::get('ZENKIPAY_PUBLIC_KEY_TEST') != '' && Configuration::get('ZENKIPAY_PRIVATE_KEY_TEST') != '';
-        }
-    }
-
-    /**
-     * Check technical requirements to make sure the Zenkipay's module will work properly
-     *
-     * @return array Requirements tests results
-     */
-    public function checkRequirements()
-    {
-        $tests = ['result' => true];
-
-        $tests['curl'] = [
-            'name' => $this->l('The PHP cURL extension must be enabled on your server.'),
-            'result' => extension_loaded('curl'),
-        ];
-
-        if (Configuration::get('ZENKIPAY_MODE')) {
-            $tests['ssl'] = [
-                'name' => $this->l('SSL must be enabled (before going live).'),
-                'result' => Configuration::get('PS_SSL_ENABLED') || (!empty($_SERVER['HTTPS']) && Tools::strtolower($_SERVER['HTTPS']) != 'off'),
-            ];
-        }
-
-        $tests['configuration'] = [
-            'name' => $this->l('You must create a Zenkipay account to obtain your public key.'),
-            'result' => $this->validateZenkipayKey(),
-        ];
-
-        $tests['php56'] = [
-            'name' => $this->l('Your server must have PHP 5.6 or later.'),
-            'result' => version_compare(PHP_VERSION, '5.6.0', '>='),
-        ];
-
-        $tests['rsa'] = [
-            'name' => $this->l('You must enter your RSA private key to sign the transactions.'),
-            'result' => $this->validateRSAPrivateKey(Configuration::get('ZENKIPAY_RSA_PRIVATE_KEY')),
-        ];
-
-        foreach ($tests as $k => $test) {
-            if ($k != 'result' && !$test['result']) {
-                $tests['result'] = false;
-            }
-        }
-
-        return $tests;
     }
 
     private function createPendingState()
@@ -189,7 +137,7 @@ class Zenkipay extends PaymentModule
 
         $state->name = $names;
         $state->color = '#4169E1';
-        $state->logable = true;
+        $state->logable = false;
         $state->module_name = 'zenkipay';
         $templ = [];
 
@@ -218,91 +166,42 @@ class Zenkipay extends PaymentModule
     public function getContent()
     {
         $this->context->controller->addCSS([$this->_path . 'views/css/zenkipay-prestashop-admin.css']);
+        $this->context->controller->addJS('https://unpkg.com/imask');
+        $sync_successfully = null;
+        $sync_message = '';
 
-        $errors = [];
-
-        /** Update Configuration Values when settings are updated */
         if (Tools::isSubmit('SubmitZenkipay')) {
-            $configuration_values = [
-                'ZENKIPAY_MODE' => Tools::getValue('zenkipay_mode'),
-                'ZENKIPAY_PUBLIC_KEY_TEST' => trim(Tools::getValue('zenkipay_public_key_test')),
-                'ZENKIPAY_PUBLIC_KEY_LIVE' => trim(Tools::getValue('zenkipay_public_key_live')),
-                'ZENKIPAY_RSA_PRIVATE_KEY' => trim(Tools::getValue('zenkipay_rsa_private_key')),
-                'ZENKIPAY_WEBHOOK_SIGNING_SECRET' => trim(Tools::getValue('zenkipay_webhook_signing_secret')),
-            ];
+            $sync_code = trim(Tools::getValue('zenkipay_sync_code'));
+            Configuration::updateValue('ZENKIPAY_MODE', Tools::getValue('zenkipay_mode') == 'on');
 
-            foreach ($configuration_values as $configuration_key => $configuration_value) {
-                Configuration::updateValue($configuration_key, $configuration_value);
-            }
+            if (!$this->validateZenkipayKey($sync_code)) {
+                $sync_successfully = false;
+                $sync_message = $this->l('An error occurred while syncing the account');
 
-            $mode = Configuration::get('ZENKIPAY_MODE') ? 'LIVE' : 'TEST';
+                Configuration::updateValue('ZENKIPAY_SYNC_CODE', '');
+                Configuration::updateValue('ZENKIPAY_API_KEY_LIVE', '');
+                Configuration::updateValue('ZENKIPAY_SECRET_KEY_LIVE', '');
+                Configuration::updateValue('ZENKIPAY_WHSEC_LIVE', '');
+                Configuration::updateValue('ZENKIPAY_API_KEY_TEST', '');
+                Configuration::updateValue('ZENKIPAY_SECRET_KEY_TEST', '');
+                Configuration::updateValue('ZENKIPAY_WHSEC_TEST', '');
+            } else {
+                $sync_successfully = true;
+                $sync_message = $this->l('Synchronization completed successfully');
 
-            if (!$this->validateZenkipayKey()) {
-                $errors[] = $this->l('Zenkipay key is incorrect.');
-                Configuration::deleteByName('ZENKIPAY_PUBLIC_KEY_' . $mode);
-            }
-
-            if (!$this->validateRSAPrivateKey(trim(Tools::getValue('zenkipay_rsa_private_key')))) {
-                $errors[] = $this->l('Invalid RSA private key has been provided.');
-                Configuration::deleteByName('ZENKIPAY_RSA_PRIVATE_KEY');
+                Configuration::updateValue('ZENKIPAY_SYNC_CODE', $sync_code);
             }
         }
-
-        if (!empty($errors)) {
-            foreach ($errors as $error) {
-                $this->error[] = $error;
-            }
-        }
-
-        $requirements = $this->checkRequirements();
-
-        foreach ($requirements as $key => $requirement) {
-            if ($key != 'result') {
-                $this->validation[] = $requirement;
-            }
-        }
-
-        if ($requirements['result']) {
-            $validation_title = $this->l('All checks were successful, now you can start using Zenkipay.');
-        } else {
-            $validation_title = $this->l('At least one problem was found in order to start using Zenkipay. Please solve the problems and refresh this page.');
-        }
-
-        $zenkipay_dashboard = 'https://portal.zenki.fi';
 
         $this->context->smarty->assign([
             'zenkipay_form_link' => $_SERVER['REQUEST_URI'],
-            'zenkipay_configuration' => Configuration::getMultiple([
-                'ZENKIPAY_MODE',
-                'ZENKIPAY_PUBLIC_KEY_TEST',
-                'ZENKIPAY_PUBLIC_KEY_LIVE',
-                'ZENKIPAY_RSA_PRIVATE_KEY',
-                'ZENKIPAY_WEBHOOK_SIGNING_SECRET',
-            ]),
-            'zenkipay_ssl' => Configuration::get('PS_SSL_ENABLED'),
-            'zenkipay_validation' => $this->validation,
-            'zenkipay_error' => empty($this->error) ? false : $this->error,
-            'zenkipay_validation_title' => $validation_title,
-            'zenkipay_dashboard' => $zenkipay_dashboard,
+            'zenkipay_configuration' => Configuration::getMultiple(['ZENKIPAY_MODE', 'ZENKIPAY_SYNC_CODE']),
+            'zenkipay_env' => Configuration::get('ZENKIPAY_MODE') ? 'Test mode' : 'Live mode',
+            'sync_successfully' => $sync_successfully,
+            'sync_message' => $sync_message,
         ]);
 
         return $this->display(__FILE__, 'views/templates/admin/configuration.tpl');
-    }
-
-    /**
-     * Hook to the top a payment page
-     *
-     * @param array $params Hook parameters
-     * @return string Hook HTML
-     */
-    public function hookDisplayPaymentTop($params)
-    {
-        return;
-    }
-
-    public function hookDisplayMobileHeader()
-    {
-        return $this->hookHeader();
     }
 
     /**
@@ -324,28 +223,32 @@ class Zenkipay extends PaymentModule
             Tools::getValue('controller') === 'order'
         ) {
             $this->context->controller->addCSS($this->_path . 'views/css/zenkipay-prestashop.css');
+            $this->context->controller->registerJavascript('remote-jquery', 'https://code.jquery.com/jquery-3.6.1.min.js', ['position' => 'head', 'server' => 'remote']);
             $this->context->controller->registerJavascript('remote-zenkipay-js', $this->js_url, ['position' => 'bottom', 'server' => 'remote']);
         }
     }
 
     /**
-     * Hook to the new PS 1.7 payment options hook
+     * Return payment options available for PS 1.7+
      *
      * @param array $params Hook parameters
-     * @return array|bool
+     * @return array|null
      * @throws Exception
      * @throws SmartyException
      */
     public function hookPaymentOptions($params)
     {
         if (version_compare(_PS_VERSION_, '1.7.0.0', '<')) {
-            return false;
+            return;
         }
 
-        /** @var Cart $cart */
-        $cart = $params['cart'];
         if (!$this->active) {
-            return false;
+            return;
+        }
+
+        $cart = $params['cart'];
+        if (!$this->checkCurrency($cart)) {
+            return;
         }
 
         try {
@@ -354,26 +257,35 @@ class Zenkipay extends PaymentModule
                 ->setCallToActionText($this->l('Zenkipay'))
                 ->setForm($this->generateForm($cart))
                 ->setModuleName($this->name)
-                ->setLogo($this->_path . 'views/img/logo.png')
-                ->setAdditionalInformation($this->context->smarty->fetch('module:zenkipay/views/templates/front/payment_infos.tpl'));
+                ->setLogo($this->_path . 'views/img/logo.png');
 
             return [$externalOption];
         } catch (Exception $e) {
-            if (class_exists('Logger')) {
-                Logger::addLog('Zenkipay - hookPaymentOptions MSG ' . $e->getMessage(), 3, null, null, null, true);
-                Logger::addLog('Zenkipay - hookPaymentOptions FILE ' . $e->getFile() . ', LINE' . $e->getLine(), 3, null, null, null, true);
-            }
-
+            Logger::addLog('Zenkipay - hookPaymentOptions MSG ' . $e->getMessage(), 3, null, null, null, true);
             $this->context->cookie->__set('zenkipay_error', $e->getMessage());
         }
     }
 
+    public function checkCurrency($cart)
+    {
+        $currency_order = new Currency($cart->id_currency);
+        $currencies_module = $this->getCurrency($cart->id_currency);
+        if (is_array($currencies_module)) {
+            foreach ($currencies_module as $currency_module) {
+                if ($currency_order->id == $currency_module['id_currency']) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
     /**
-     * Realizar reembolso
+     * Makes the refund
      *
-     * @link https://devdocs.prestashop.com/1.7/modules/concepts/hooks/list-of-hooks/
-     * @param type $params
-     * @return type
+     * @param array $params
+     *
+     * @return bool
      */
     public function hookActionOrderStatusPostUpdate($params)
     {
@@ -382,27 +294,20 @@ class Zenkipay extends PaymentModule
 
         try {
             $order = new Order((int) $order_id);
-            if ($order->payment != 'Zenkipay' && $new_order_state->id != Configuration::get('PS_OS_REFUND')) {
-                return;
+            if ($order->payment == 'Zenkipay' && $new_order_state->id == Configuration::get('PS_OS_REFUND')) {
+                $payment = $order->getOrderPayments();
+                $data = [
+                    'reason' => 'Refund request originated by PrestaShop.',
+                ];
+
+                $this->createRefund($payment[0]->transaction_id, $data);
             }
-
-            $payment = $order->getOrderPayments();
-            $data = [
-                'title' => 'PrestaShop refund request #' . $order_id,
-                'description' => 'Refund request originated by PrestaShop.',
-                'orderId' => $payment[0]->transaction_id,
-            ];
-
-            $this->createDispute($data);
         } catch (Exception $e) {
             Logger::addLog('Zenkipay - hookActionOrderStatusPostUpdate getMessage ' . $e->getMessage(), 3, $e->getCode(), null, null, true);
-            Logger::addLog('Zenkipay - hookActionOrderStatusPostUpdate getLine ' . $e->getLine(), 3, $e->getCode(), null, null, true);
         }
-
-        return;
     }
 
-    protected function generateForm($cart)
+    private function generateForm($cart)
     {
         if (!empty($this->context->cookie->zenkipay_error)) {
             $this->context->smarty->assign('zenkipay_error', $this->context->cookie->zenkipay_error);
@@ -411,9 +316,11 @@ class Zenkipay extends PaymentModule
 
         try {
             $data = [
-                'js_dir' => _PS_JS_DIR_,
                 'module_dir' => $this->_path,
                 'action' => $this->context->link->getModuleLink($this->name, 'validation', [], Tools::usingSecureMode()),
+                'create_order_ajax' => Tools::getHttpHost(true) . __PS_BASE_URI__ . 'module/zenkipay/order',
+                'cart_id' => $cart->id,
+                'crypto_btn' => $this->context->language->iso_code == 'es' ? $this->_path . 'views/img/crypto-btn-es.png' : $this->_path . 'views/img/crypto-btn.png',
             ];
 
             $this->context->smarty->assign($data);
@@ -421,178 +328,8 @@ class Zenkipay extends PaymentModule
             return $this->context->smarty->fetch('module:zenkipay/views/templates/front/form.tpl');
         } catch (Exception $e) {
             Logger::addLog('Zenkipay - generateForm' . $e->getMessage(), 3, $e->getCode(), null, null, true);
-
             return false;
         }
-    }
-
-    /**
-     * Process a payment
-     *
-     */
-    public function processPayment($zenkipay_trx_id)
-    {
-        if (!$this->active) {
-            return;
-        }
-
-        Logger::addLog('Zenkipay - zenkipay_trx_id: ' . $zenkipay_trx_id, 1, null, 'Cart', (int) $this->context->cart->id, true);
-
-        $mail_detail = '';
-        $payment_method = 'zenkipay';
-        $cart = $this->context->cart;
-        $display_name = 'Zenkipay';
-
-        try {
-            // $order_status = Configuration::get('PS_OS_PAYMENT');
-            $order_status = Configuration::get('PS_OS_ZENKIPAY_PAYMENT');
-            $amount = $cart->getOrderTotal();
-
-            $message =
-                $this->l('Transaction Details:') .
-                "\n\n" .
-                $this->l('Transaction ID:') .
-                ' ' .
-                $zenkipay_trx_id .
-                "\n" .
-                $this->l('Payment method:') .
-                ' ' .
-                Tools::ucfirst($payment_method) .
-                "\n" .
-                $this->l('Amount:') .
-                ' $' .
-                number_format($amount, 2) .
-                ' ' .
-                Tools::strtoupper($this->context->currency->iso_code) .
-                "\n" .
-                $this->l('Status:') .
-                ' ' .
-                $this->l('Paid') .
-                "\n" .
-                $this->l('Processed on:') .
-                ' ' .
-                date('Y-m-d H:i:s') .
-                "\n" .
-                $this->l('Mode:') .
-                ' ' .
-                (Configuration::get('ZENKIPAY_MODE') ? $this->l('Live') : $this->l('Test')) .
-                "\n";
-
-            /* Create the PrestaShop order in database */
-            $detail = ['{detail}' => $mail_detail];
-            $this->validateOrder((int) $this->context->cart->id, (int) $order_status, $amount, $display_name, $message, $detail, null, false, $this->context->customer->secure_key);
-            $new_order = new Order((int) $this->currentOrder);
-
-            /** Redirect the user to the order confirmation page history */
-            $redirect =
-                __PS_BASE_URI__ .
-                'index.php?controller=order-confirmation&id_cart=' .
-                (int) $this->context->cart->id .
-                '&id_module=' .
-                (int) $this->id .
-                '&id_order=' .
-                (int) $this->currentOrder .
-                '&key=' .
-                $this->context->customer->secure_key;
-
-            Tools::redirect($redirect);
-            /** catch the Zenkipay error */
-        } catch (Exception $e) {
-            if (class_exists('Logger')) {
-                Logger::addLog('Zenkipay - Payment transaction failed ' . $e->getMessage(), 3, null, 'Cart', (int) $this->context->cart->id, true);
-                Logger::addLog('Zenkipay - Payment transaction failed ' . $e->getLine(), 4, $e->getCode(), 'Cart', (int) $this->context->cart->id, true);
-            }
-
-            $this->context->cookie->__set('zenkipay_error', $e->getMessage());
-
-            Tools::redirect('index.php?controller=order&step=1');
-        }
-    }
-
-    /**
-     * Display a confirmation message after an order has been placed
-     *
-     * @param array Hook parameters
-     */
-    public function hookPaymentReturn($params)
-    {
-        if (!isset($params['order']) || $params['order']->module != $this->name) {
-            Logger::addLog('Orden no existe', 3, null, null, null, true);
-            return false;
-        }
-
-        $this->context->controller->registerJavascript('remote-zenkipay-js', $this->js_url, ['position' => 'bottom', 'server' => 'remote']);
-
-        /** @var Order $order */
-        $order = $params['order'];
-        $cart = new Cart((int) $order->id_cart);
-        $currency = Currency::getIsoCodeById((int) $cart->id_currency);
-        $pk = Configuration::get('ZENKIPAY_MODE') ? Configuration::get('ZENKIPAY_PUBLIC_KEY_LIVE') : Configuration::get('ZENKIPAY_PUBLIC_KEY_TEST');
-
-        $country = $cart->getTaxCountry();
-        $products = $cart->getProducts();
-        $formatted_products = [];
-        $shopperEmail = '';
-        $summary = $cart->getSummaryDetails();
-
-        if (property_exists($cart, 'id_customer')) {
-            $customer = new Customer((int) $cart->id_customer);
-            $shopperEmail = $customer->email;
-        }
-
-        foreach ($products as $product) {
-            array_push($formatted_products, [
-                'itemId' => $product['id_product'],
-                'productName' => $product['name'],
-                'productDescription' => strip_tags($product['description_short']),
-                'quantity' => $product['cart_quantity'],
-                'price' => $this->formatNumber($product['price']), // without taxes
-                'metadata' => [
-                    'price_wt' => $this->formatNumber($product['price_wt']),
-                    'reduction_applies' => $product['reduction_applies'] === true ? 'true' : 'false',
-                    'reduction_type' => (string) $product['reduction_type'],
-                    'reduction' => $this->formatNumber($product['reduction']),
-                    'reduction_without_tax' => $this->formatNumber($product['reduction_without_tax']),
-                ],
-            ]);
-        }
-
-        $purchase_data = [
-            'version' => $this->purchase_data_version,
-            'zenkipayKey' => $pk,
-            'merchantOrderId' => $order->id,
-            'shopperEmail' => $shopperEmail,
-            'shopperCartId' => $cart->id,
-            'items' => $formatted_products,
-            'country' => $country->iso_code,
-            'purchaseSummary' => [
-                'currency' => $currency,
-                'totalItemsAmount' => $this->formatNumber($summary['total_products']), // without taxes
-                'shipmentAmount' => $this->formatNumber($summary['total_shipping_tax_exc']), // without taxes
-                'subtotalAmount' => $this->formatNumber($summary['total_price_without_tax']), // without taxes
-                'taxesAmount' => $this->formatNumber($summary['total_tax']),
-                'discountAmount' => $this->formatNumber($summary['total_discounts']),
-                'grandTotalAmount' => $this->formatNumber($cart->getOrderTotal()),
-                'localTaxesAmount' => 0,
-                'importCosts' => 0,
-            ],
-        ];
-
-        $payload = json_encode($purchase_data);
-        $signature = $this->generateSignature($payload);
-
-        $data = [
-            'js_dir' => _PS_JS_DIR_,
-            'pk' => $pk,
-            'purchase_data' => $payload,
-            'signature' => $signature,
-        ];
-
-        $this->context->smarty->assign($data);
-
-        $template = './views/templates/hook/order_confirmation.tpl';
-
-        return $this->display(__FILE__, $template);
     }
 
     public function getPath()
@@ -603,16 +340,21 @@ class Zenkipay extends PaymentModule
     /**
      * Checks if the Zenkipay key is valid
      *
-     * @return boolean
+     * @return bool
      */
-    protected function validateZenkipayKey()
+    private function validateZenkipayKey($sync_code)
     {
-        $result = $this->getAccessToken();
-        if (array_key_exists('access_token', $result)) {
-            return true;
+        if (!$this->setCredentials($sync_code)) {
+            return false;
         }
 
-        return false;
+        $result = $this->getAccessToken();
+
+        if (!array_key_exists('accessToken', $result)) {
+            return false;
+        }
+
+        return true;
     }
 
     /**
@@ -620,26 +362,29 @@ class Zenkipay extends PaymentModule
      *
      * @return array
      */
-    protected function getAccessToken()
+    private function getAccessToken()
     {
-        $payload = Configuration::get('ZENKIPAY_MODE') ? Configuration::get('ZENKIPAY_PUBLIC_KEY_LIVE') : Configuration::get('ZENKIPAY_PUBLIC_KEY_TEST');
-        $url = $this->url . '/public/v1/merchants/plugin/token';
+        $api_key = Configuration::get('ZENKIPAY_MODE') ? Configuration::get('ZENKIPAY_API_KEY_TEST') : Configuration::get('ZENKIPAY_API_KEY_LIVE');
+        $secret_key = Configuration::get('ZENKIPAY_MODE') ? Configuration::get('ZENKIPAY_SECRET_KEY_TEST') : Configuration::get('ZENKIPAY_SECRET_KEY_LIVE');
 
-        if (strlen($payload) == 0) {
-            return [];
-        }
+        $url = $this->api_url . '/v1/oauth/tokens';
+        $credentials = ['clientId' => $api_key, 'clientSecret' => $secret_key, 'grantType' => 'client_credentials'];
+        $headers = ['Accept: application/json', 'Content-Type: application/json'];
+        $agent = 'Zenkipay-PHP/1.0';
 
         $ch = curl_init();
+        curl_setopt_array($ch, [
+            CURLOPT_URL => $url,
+            CURLOPT_HTTPHEADER => $headers,
+            CURLOPT_RETURNTRANSFER => true, // return the transfer as a string of the return value
+            CURLOPT_TIMEOUT => 30, // The maximum number of seconds to allow cURL functions to execute.
+            CURLOPT_USERAGENT => $agent,
+            CURLOPT_CUSTOMREQUEST => 'POST',
+            CURLOPT_POSTFIELDS => json_encode($credentials), // Data that will send
+        ]);
 
-        curl_setopt($ch, CURLOPT_POSTFIELDS, $payload);
-        curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type:text/plain']);
-
-        curl_setopt($ch, CURLOPT_URL, $url);
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'POST');
         $result = curl_exec($ch);
-
-        if ($result === false) {
+        if ($result === false || !$result) {
             Logger::addLog('Curl error ' . curl_errno($ch) . ': ' . curl_error($ch), 1, null, null, null, true);
             return [];
         }
@@ -648,37 +393,10 @@ class Zenkipay extends PaymentModule
         return json_decode($result, true);
     }
 
-    /**
-     * Updates Zenkipay's merchantOrderId after WooCommerce register the order
-     *
-     * @param mixed $zenkipay_order_id
-     * @param mixed $order_id
-     *
-     * @return boolean
-     */
-    protected function updateZenkipayOrder($zenkipay_order_id, $order_id)
+    private function handleTrackingNumber($orderId, $data)
     {
         try {
-            $zenkipay_key = Configuration::get('ZENKIPAY_MODE') ? Configuration::get('ZENKIPAY_PUBLIC_KEY_LIVE') : Configuration::get('ZENKIPAY_PUBLIC_KEY_TEST');
-            $url = $this->url . '/v1/orders/' . $zenkipay_order_id;
-            $data = json_encode(['zenkipayKey' => $zenkipay_key, 'merchantOrderId' => $order_id]);
-            $method = 'PATCH';
-            $result = $this->customRequest($url, $method, $data);
-
-            Logger::addLog('Zenkipay - updateZenkipayOrder ' . $result, 1, null, null, null, true);
-
-            return true;
-        } catch (Exception $e) {
-            Logger::addLog('Zenkipay - updateZenkipayOrder: ' . $e->getMessage(), 1, null, 'Cart', (int) $this->context->cart->id, true);
-            Logger::addLog('Zenkipay - updateZenkipayOrder: ' . $e->getTraceAsString(), 4, $e->getCode(), 'Cart', (int) $this->context->cart->id, true);
-            return false;
-        }
-    }
-
-    protected function handleTrackingNumber($data)
-    {
-        try {
-            $url = $this->api_url . '/v1/api/tracking';
+            $url = $this->api_url . '/v1/pay/orders/' . $orderId . '/tracking';
             $method = 'POST';
 
             $result = $this->customRequest($url, $method, $data);
@@ -687,48 +405,99 @@ class Zenkipay extends PaymentModule
 
             return true;
         } catch (Exception $e) {
-            Logger::addLog('Zenkipay - handleTrackingNumber: ' . $e->getMessage(), 1, null, 'Cart', (int) $this->context->cart->id, true);
-            Logger::addLog('Zenkipay - handleTrackingNumber: ' . $e->getTraceAsString(), 4, $e->getCode(), 'Cart', (int) $this->context->cart->id, true);
+            Logger::addLog('Zenkipay - handleTrackingNumber: ' . $e->getMessage(), 1, null, null, null, true);
             return false;
         }
     }
 
-    protected function createDispute($data)
+    private function createRefund($orderId, $data)
     {
         try {
-            $url = $this->api_url . '/v1/api/disputes';
+            $url = $this->api_url . '/v1/pay/orders/' . $orderId . '/refunds';
             $method = 'POST';
 
             $result = $this->customRequest($url, $method, $data);
 
-            Logger::addLog('Zenkipay - createDispute ' . $result, 1, null, null, null, true);
+            Logger::addLog('Zenkipay - createRefund ' . $result, 1, null, null, null, true);
 
             return true;
         } catch (Exception $e) {
-            Logger::addLog('Zenkipay - createDispute: ' . $e->getMessage(), 1, null, 'Cart', (int) $this->context->cart->id, true);
-            Logger::addLog('Zenkipay - createDispute: ' . $e->getTraceAsString(), 4, $e->getCode(), 'Cart', (int) $this->context->cart->id, true);
+            Logger::addLog('Zenkipay - createRefund: ' . $e->getMessage(), 3, null, null, null, true);
             return false;
         }
     }
 
-    protected function customRequest($url, $method, $data)
+    public function getMerchant()
+    {
+        try {
+            $url = $this->api_url . '/v1/pay/me';
+            $method = 'GET';
+
+            $result = $this->customRequest($url, $method, null);
+
+            Logger::addLog('Zenkipay - getMerchant ' . $result, 1, null, null, null, true);
+
+            return json_decode($result);
+        } catch (Exception $e) {
+            Logger::addLog('Zenkipay - getMerchant ERROR: ' . $e->getMessage(), 3, null, null, null, true);
+            return false;
+        }
+    }
+
+    public function getZenkiOrder($order_id)
+    {
+        try {
+            $url = $this->api_url . '/v1/pay/orders/' . $order_id;
+            $method = 'GET';
+
+            $result = $this->customRequest($url, $method, null);
+
+            Logger::addLog('Zenkipay - getZenkiOrder ' . $result, 1, null, null, null, true);
+
+            return json_decode($result);
+        } catch (Exception $e) {
+            Logger::addLog('Zenkipay - getZenkiOrder ERROR: ' . $e->getMessage(), 3, null, null, null, true);
+            return false;
+        }
+    }
+
+    public function updateZenkiOrder($order_id, $data)
+    {
+        try {
+            $url = $this->api_url . '/v1/pay/orders/' . $order_id;
+            $method = 'PATCH';
+
+            $result = $this->customRequest($url, $method, $data);
+
+            Logger::addLog('Zenkipay - updateZenkiOrder ' . $result, 1, null, null, null, true);
+
+            return json_decode($result);
+        } catch (Exception $e) {
+            Logger::addLog('Zenkipay - updateZenkiOrder ERROR: ' . $e->getMessage(), 3, null, null, null, true);
+            return false;
+        }
+    }
+
+    private function customRequest($url, $method, $data)
     {
         $token_result = $this->getAccessToken();
 
-        if (!array_key_exists('access_token', $token_result)) {
-            Logger::addLog('Zenkipay - customRequest: Error al obtener access_token ', 3, null, null, null, true);
+        if (!array_key_exists('accessToken', $token_result)) {
+            Logger::addLog('Zenkipay - customRequest: Error al obtener accessToken ', 3, null, null, null, true);
             throw new PrestaShopException('Invalid access token');
         }
 
-        $headers = ['Accept: */*', 'Content-Type: application/json', 'Authorization: Bearer ' . $token_result['access_token']];
+        $agent = 'Zenkipay-SDK/1.0';
+        $headers = ['Accept: */*', 'Content-Type: application/json', 'Authorization: Bearer ' . $token_result['accessToken']];
 
         $ch = curl_init();
-        curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
         curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
-
         curl_setopt($ch, CURLOPT_URL, $url);
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 30);
+        curl_setopt($ch, CURLOPT_USERAGENT, $agent);
         curl_setopt($ch, CURLOPT_CUSTOMREQUEST, $method);
+        curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
         $result = curl_exec($ch);
 
         if ($result === false) {
@@ -742,94 +511,186 @@ class Zenkipay extends PaymentModule
     }
 
     /**
-     * Checks if the plain RSA private key is valid
-     *
-     * @param string $plain_rsa_private_key Plain RSA private key
-     *
-     * @return boolean
-     */
-    protected function validateRSAPrivateKey($plain_rsa_private_key)
-    {
-        if (empty($plain_rsa_private_key)) {
-            return false;
-        }
-
-        try {
-            $private_key = openssl_pkey_get_private($plain_rsa_private_key);
-
-            if (is_resource($private_key)) {
-                $public_key = openssl_pkey_get_details($private_key);
-
-                if (is_array($public_key) && isset($public_key['key'])) {
-                    return true;
-                }
-            }
-
-            return false;
-        } catch (Exception $e) {
-            Logger::addLog('Zenkipay - validateRSAPrivateKey ' . $e->getTraceAsString(), 3, null, null, null, true);
-            return false;
-        }
-    }
-
-    /**
-     * Generates payload signature using the RSA private key
-     *
-     * @param string $payload Purchase data
-     *
-     * @return string
-     */
-    protected function generateSignature($payload)
-    {
-        $rsa_private_key = openssl_pkey_get_private(Configuration::get('ZENKIPAY_RSA_PRIVATE_KEY'));
-        openssl_sign($payload, $signature, $rsa_private_key, 'RSA-SHA256');
-        return base64_encode($signature);
-    }
-
-    /**
      * @return string
      */
     public function getWebhookSigningSecret()
     {
-        return $this->webhook_signing_secret;
+        return Configuration::get('ZENKIPAY_MODE') ? Configuration::get('ZENKIPAY_WHSEC_TEST') : Configuration::get('ZENKIPAY_WHSEC_LIVE');
     }
 
-    protected function formatNumber($value, $decimals = 2)
+    private function formatNumber($value, $decimals = 2)
     {
         return number_format($value, $decimals, '.', '');
     }
 
     /**
-     * Decrypt message with RSA private key
+     * Get order type
      *
-     * @param  base64_encoded string holds the encrypted message.
-     * @param  integer $chunk_size Chunking by bytes to feed to the decryptor algorithm (512).
+     * @param array $items_types
      *
-     * @return String decrypted message.
+     * @return string
      */
-    public function RSADecyrpt($encrypted_msg)
+    private function getOrderType($items_types)
     {
-        $ppk = openssl_pkey_get_private($this->rsa_private_key);
-        $encrypted_msg = base64_decode($encrypted_msg);
-
-        // Decrypt the data in the small chunks
-        $a_key = openssl_pkey_get_details($ppk);
-        $chunk_size = ceil($a_key['bits'] / 8);
-
-        $offset = 0;
-        $decrypted = '';
-
-        while ($offset < strlen($encrypted_msg)) {
-            $decrypted_chunk = '';
-            $chunk = substr($encrypted_msg, $offset, $chunk_size);
-
-            if (openssl_private_decrypt($chunk, $decrypted_chunk, $ppk)) {
-                $decrypted .= $decrypted_chunk;
-            } else {
-                throw new PrestaShopException('Problem decrypting the message.');
-            }
-            $offset += $chunk_size;
+        $needles = ['WITH_CARRIER', 'WITHOUT_CARRIER'];
+        if (empty(array_diff($needles, $items_types))) {
+            return 'MIXED';
+        } elseif (in_array('WITH_CARRIER', $items_types)) {
+            return 'WITH_CARRIER';
+        } else {
+            return 'WITHOUT_CARRIER';
         }
-        return $decrypted;
+    }
+
+    public function createOrder()
+    {
+        $url = $this->api_url . '/v1/pay/orders';
+        $method = 'POST';
+        $cart = new Cart((int) $this->context->cart->id);
+        $currency = Currency::getIsoCodeById((int) $cart->id_currency);
+
+        $country = $cart->getTaxCountry();
+        $products = $cart->getProducts();
+        $formatted_products = [];
+        $shopperEmail = '';
+        $summary = $cart->getSummaryDetails();
+        $items_types = [];
+
+        if (property_exists($cart, 'id_customer')) {
+            $customer = new Customer((int) $cart->id_customer);
+            $shopperEmail = $customer->email;
+        }
+
+        foreach ($products as $product) {
+            $item_type = $product['is_virtual'] ? 'WITHOUT_CARRIER' : 'WITH_CARRIER';
+            array_push($items_types, $item_type);
+
+            array_push($formatted_products, [
+                'external_id' => $product['id_product'],
+                'name' => $product['name'],
+                'description' => strip_tags($product['description_short']),
+                'quantity' => $product['cart_quantity'],
+                'unitPrice' => $this->formatNumber($product['price']), // without taxes
+                'metadata' => [
+                    'price_wt' => $this->formatNumber($product['price_wt']),
+                    'reduction_applies' => $product['reduction_applies'] === true ? 'true' : 'false',
+                    'reduction_type' => (string) $product['reduction_type'],
+                    'reduction' => $this->formatNumber($product['reduction']),
+                    'reduction_without_tax' => $this->formatNumber($product['reduction_without_tax']),
+                ],
+                'type' => $item_type,
+            ]);
+        }
+
+        $purchase_data = [
+            'version' => $this->purchase_data_version,
+            'cartId' => $cart->id,
+            'type' => $this->getOrderType($items_types),
+            'countryCodeIso2' => $country->iso_code,
+            'shopper' => [
+                'email' => $shopperEmail,
+            ],
+            'breakdown' => [
+                'currencyCodeIso3' => $currency,
+                'totalItemsAmount' => $this->formatNumber($summary['total_products']), // without taxes
+                'shipmentAmount' => $this->formatNumber($summary['total_shipping_tax_exc']), // without taxes
+                'subtotalAmount' => $this->formatNumber($summary['total_price_without_tax']), // without taxes
+                'taxesAmount' => $this->formatNumber($summary['total_tax']),
+                'localTaxesAmount' => 0,
+                'importCosts' => 0,
+                'discountAmount' => $this->formatNumber($summary['total_discounts']),
+                'grandTotalAmount' => $this->formatNumber($cart->getOrderTotal()),
+            ],
+            'items' => $formatted_products,
+        ];
+
+        Logger::addLog('Zenkipay - $purchase_data => ' . json_encode($purchase_data), 1);
+
+        $result = $this->customRequest($url, $method, $purchase_data);
+        $zenkipay_order = json_decode($result);
+
+        return [
+            'zenki_order_id' => $zenkipay_order->zenkiOrderId,
+            'payment_signature' => $zenkipay_order->paymentSignature,
+        ];
+    }
+
+    private function setCredentials($sync_code)
+    {
+        try {
+            if (!$this->hasSyncedAccount() || Configuration::get('ZENKIPAY_SYNC_CODE') != $sync_code) {
+                $credentials = $this->sync($sync_code);
+
+                if (isset($credentials['errorCode'])) {
+                    throw new PrestaShopException($credentials['humanMessage']);
+                }
+
+                // Se valida que la sincronización haya sido exitosa
+                if (isset($credentials['status']) && $credentials['status'] != 'SYNCHRONIZED') {
+                    throw new PrestaShopException('Sync status ' . $credentials['status'] . ' is different from SYNCHRONIZED.');
+                }
+
+                // TEST
+                Configuration::updateValue('ZENKIPAY_API_KEY_TEST', $credentials['synchronizationAccessData']['sandboxApiAccessData']['apiAccessData']['apiKey']);
+                Configuration::updateValue('ZENKIPAY_SECRET_KEY_TEST', $credentials['synchronizationAccessData']['sandboxApiAccessData']['apiAccessData']['secretKey']);
+                Configuration::updateValue('ZENKIPAY_WHSEC_TEST', $credentials['synchronizationAccessData']['sandboxApiAccessData']['webhookAccessData']['signingSecret']);
+
+                // PROD
+                Configuration::updateValue('ZENKIPAY_API_KEY_LIVE', $credentials['synchronizationAccessData']['liveApiAccessData']['apiAccessData']['apiKey']);
+                Configuration::updateValue('ZENKIPAY_SECRET_KEY_LIVE', $credentials['synchronizationAccessData']['liveApiAccessData']['apiAccessData']['secretKey']);
+                Configuration::updateValue('ZENKIPAY_WHSEC_LIVE', $credentials['synchronizationAccessData']['liveApiAccessData']['webhookAccessData']['signingSecret']);
+
+                // Test mode
+                Configuration::updateValue('ZENKIPAY_MODE', $credentials['testMode']);
+            }
+
+            return true;
+        } catch (Exception $e) {
+            Logger::addLog('Zenkipay - setCredentials ERROR: ' . $e->getTraceAsString(), 3, $e->getCode(), null, null, true);
+            return false;
+        }
+    }
+
+    private function sync($sync_code)
+    {
+        $synchronizationCode = trim(str_replace('-', '', $sync_code));
+        $url = $this->api_url . '/public/v1/pay/plugins/synchronize';
+        $urlStore = rtrim(Tools::getHttpHost(true) . __PS_BASE_URI__, '/');
+        $method = 'POST';
+        $data = ['pluginUrl' => $urlStore, 'pluginVersion' => 'v1.0.0', 'synchronizationCode' => $synchronizationCode];
+        $headers = ['Accept: application/json', 'Content-Type: application/json'];
+        $agent = 'Zenkipay-PHP/1.0';
+
+        $ch = curl_init();
+        curl_setopt_array($ch, [
+            CURLOPT_URL => $url,
+            CURLOPT_HTTPHEADER => $headers,
+            CURLOPT_RETURNTRANSFER => true, // return the transfer as a string of the return value
+            CURLOPT_TIMEOUT => 30, // The maximum number of seconds to allow cURL functions to execute.
+            CURLOPT_USERAGENT => $agent,
+            CURLOPT_CUSTOMREQUEST => $method,
+            CURLOPT_POSTFIELDS => json_encode($data), // Data that will send
+        ]);
+
+        $result = curl_exec($ch);
+        if ($result === false) {
+            throw new PrestaShopException('Error with the ' . $method . ' request ' . $url);
+        }
+
+        curl_close($ch);
+        return json_decode($result, true);
+    }
+
+    private function hasSyncedAccount()
+    {
+        $api_key = Configuration::get('ZENKIPAY_MODE') ? Configuration::get('ZENKIPAY_API_KEY_TEST') : Configuration::get('ZENKIPAY_API_KEY_LIVE');
+        $secret_key = Configuration::get('ZENKIPAY_MODE') ? Configuration::get('ZENKIPAY_SECRET_KEY_TEST') : Configuration::get('ZENKIPAY_SECRET_KEY_LIVE');
+        $whsec = Configuration::get('ZENKIPAY_MODE') ? Configuration::get('ZENKIPAY_WHSEC_TEST') : Configuration::get('ZENKIPAY_WHSEC_LIVE');
+
+        if (empty($api_key) || empty($secret_key) || empty($whsec)) {
+            return false;
+        }
+
+        return true;
     }
 }

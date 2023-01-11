@@ -1,13 +1,13 @@
 <?php
 /**
- * 2007-2015 PrestaShop
+ * 2007-2023 PrestaShop
  *
  * NOTICE OF LICENSE
  *
- * This source file is subject to the Open Software License (OSL 3.0)
+ * This source file is subject to the Academic Free License (AFL 3.0)
  * that is bundled with this package in the file LICENSE.txt.
  * It is also available through the world-wide-web at this URL:
- * http://opensource.org/licenses/osl-3.0.php
+ * http://opensource.org/licenses/afl-3.0.php
  * If you did not receive a copy of the license and are unable to
  * obtain it through the world-wide-web, please send an email
  * to license@prestashop.com so we can send you a copy immediately.
@@ -19,15 +19,18 @@
  * needs please refer to http://www.prestashop.com for more information.
  *
  *  @author    PrestaShop SA <contact@prestashop.com>
- *  @copyright 2007-2015 PrestaShop SA
- *  @license   http://opensource.org/licenses/osl-3.0.php  Open Software License (OSL 3.0)
+ *  @copyright 2007-2023 PrestaShop SA
+ *  @license   http://opensource.org/licenses/afl-3.0.php  Academic Free License (AFL 3.0)
  *  International Registered Trademark & Property of PrestaShop SA
  */
-
 use Svix\Webhook;
 
 require_once dirname(__FILE__) . '/../../lib/svix/init.php';
 require_once dirname(__FILE__) . '/../../zenkipay.php';
+
+if (!defined('_PS_VERSION_')) {
+    exit;
+}
 
 class ZenkipayNotificationModuleFrontController extends ModuleFrontController
 {
@@ -47,7 +50,6 @@ class ZenkipayNotificationModuleFrontController extends ModuleFrontController
     public function initContent()
     {
         $payload = Tools::file_get_contents('php://input');
-
         $headers = apache_request_headers();
         $svix_headers = [];
         foreach ($headers as $key => $value) {
@@ -58,53 +60,61 @@ class ZenkipayNotificationModuleFrontController extends ModuleFrontController
         Logger::addLog('Webhook payload: ' . $payload, 1, null, null, null, true);
 
         try {
-            $secret = $this->zenkipay->getWebhookSigningSecret();
-            $wh = new Webhook($secret);
-            $json = $wh->verify($payload, $svix_headers);
+            // $secret = $this->zenkipay->getWebhookSigningSecret();
+            // $wh = new Webhook($secret);
+            // $json = $wh->verify($payload, $svix_headers);
+            $json = json_decode($payload);
+            $payment = json_decode($json->flatData);
 
-            if (!($decrypted_data = $this->zenkipay->RSADecyrpt($json->encryptedData))) {
-                throw new PrestaShopException('Unable to decrypt data.');
+            if ($payment->paymentInfo->cryptoPayment->transactionStatus != 'COMPLETED' || !$payment->cartId) {
+                header('HTTP/1.1 400 Bad Request');
+                header('Content-type: application/json');
+                echo json_encode(['error' => true, 'message' => 'Transaction status is no tcompleted or cartId is empty.']);
+                exit;
             }
 
-            Logger::addLog('#decrypted_data => ' . $decrypted_data, 1, null, null, null, true);
-            $event = json_decode($decrypted_data);
-            $payment = $event->eventDetails;
+            $order_id = Order::getOrderByCartId((int) $payment->cartId);
 
-            if ($payment->transactionStatus != 'COMPLETED' || !$payment->merchantOrderId) {
-                throw new PrestaShopException('Transaction status is not completed or merchantOrderId is empty.');
+            if (empty($order_id)) {
+                $msg = 'OrderID not found using Order::getOrderByCartId(' . $payment->cartId . ')';
+                header('HTTP/1.1 404 Not Found');
+                header('Content-type: application/json');
+                echo json_encode(['error' => true, 'message' => $msg]);
+                exit;
             }
 
-            $order = new Order((int) $payment->merchantOrderId);
+            $order = new Order((int) $order_id);
             $order_state = $order->getCurrentOrderState();
 
             if ($order_state && !$order_state->paid) {
+                $order->total_paid = $payment->breakdown->grandTotalAmount;
+                $order->update();
+
+                $order_history = new OrderHistory();
+                $order_history->id_order = (int) $order_id;
+                $order_history->changeIdOrderState(Configuration::get('PS_OS_PAYMENT'), (int) $order_id);
+                $order_history->addWithemail();
+
                 $payments = $order->getOrderPaymentCollection();
                 if (isset($payments[0])) {
-                    $payments[0]->transaction_id = pSQL($payment->orderId);
+                    $payments[0]->transaction_id = pSQL($payment->zenkiOrderId);
                     $payments[0]->save();
                 }
 
-                $order->setCurrentState((int) Configuration::get('PS_OS_PAYMENT'));
-
-                // Crypto love discount is added
-                $cart = new Cart((int) $order->id_cart);
-                $cryptoLoveFiatAmount = $payment->cryptoLoveFiatAmount;
-                if ($cryptoLoveFiatAmount > 0) {
-                    $cart_rule = $this->createCartRule($cart, $cryptoLoveFiatAmount);
-                    $this->addDiscount($order, $cart, $cart_rule);
-                }
+                $this->zenkipay->updateZenkiOrder($payment->zenkiOrderId, ['orderId' => $order_id]);
             }
         } catch (Exception $e) {
-            if (class_exists('Logger')) {
-                Logger::addLog('Webhook Notification - BAD REQUEST 400 - Request Body: ' . $e->getMessage(), 3, null, null, null, true);
-                Logger::addLog('Webhook Notification - BAD REQUEST 400 - Request Body: ' . $e->getLine(), 3, null, null, null, true);
-            }
-            http_response_code(400);
-            exit();
+            Logger::addLog('Webhook Notification - BAD REQUEST 400: ' . $e->getMessage(), 3, null, null, null, true);
+            header('HTTP/1.1 500 Internal Server Error');
+            header('Content-type: application/json');
+            echo json_encode(['error' => true, 'message' => 'An unexpected error has occurred']);
+            exit;
         }
 
-        http_response_code(200);
-        exit();
+        header('HTTP/1.1 200 OK');
+        header('Content-type: application/json');
+        echo json_encode(['success' => true]);
+        exit;
     }
 
     protected function createCartRule($cart, $discount)
@@ -114,7 +124,7 @@ class ZenkipayNotificationModuleFrontController extends ModuleFrontController
 
         foreach ($language_ids as $language_id) {
             $cart_rule->name[$language_id] = $this->l('Zenkipay rule');
-            $cart_rule->description = $this->trans('Rule created automatically by Zenkipay');
+            $cart_rule->description = $this->l('Rule created automatically by Zenkipay');
         }
 
         $now = time();
@@ -143,34 +153,34 @@ class ZenkipayNotificationModuleFrontController extends ModuleFrontController
             'UPDATE ' .
                 _DB_PREFIX_ .
                 'orders  SET total_discounts = ' .
-                $total_discounts .
+                (float) $total_discounts .
                 ', total_discounts_tax_incl = ' .
-                $total_discounts_tax_incl .
+                (float) $total_discounts_tax_incl .
                 ', total_discounts_tax_excl = ' .
-                $total_discounts_tax_excl .
+                (float) $total_discounts_tax_excl .
                 ', total_paid = ' .
-                $total_paid .
+                (float) $total_paid .
                 ', total_paid_tax_incl = ' .
-                $total_paid .
+                (float) $total_paid .
                 ', total_paid_tax_excl = ' .
-                $total_paid_tax_excl .
+                (float) $total_paid_tax_excl .
                 ', total_paid_real = ' .
-                $total_paid .
+                (float) $total_paid .
                 ' WHERE id_order = ' .
-                $order->id
+                (int) $order->id
         );
 
         Db::getInstance()->Execute(
             'INSERT INTO ' .
                 _DB_PREFIX_ .
                 'order_cart_rule (`id_order`, `id_cart_rule`, `id_order_invoice`, `name`, `value`, `value_tax_excl`, `free_shipping`, `deleted`) VALUES (' .
-                $order->id .
+                (int) $order->id .
                 ', ' .
-                $cart_rule->id .
+                (int) $cart_rule->id .
                 ', "0", "Crypto Love", ' .
-                $total_discounts .
+                (float) $total_discounts .
                 ', ' .
-                $total_discounts_tax_excl .
+                (float) $total_discounts_tax_excl .
                 ', 0, 0)'
         );
     }
