@@ -40,7 +40,7 @@ class Zenkipay extends PaymentModule
     {
         $this->name = 'zenkipay';
         $this->tab = 'payments_gateways';
-        $this->version = '2.1.0';
+        $this->version = '2.1.2';
         $this->author = 'PayByWallet, Inc';
         $this->module_key = 'df41f70b22ceb53e7a971bf132e0cbc1';
 

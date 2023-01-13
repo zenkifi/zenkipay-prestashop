@@ -60,10 +60,9 @@ class ZenkipayNotificationModuleFrontController extends ModuleFrontController
         Logger::addLog('Webhook payload: ' . $payload, 1, null, null, null, true);
 
         try {
-            // $secret = $this->zenkipay->getWebhookSigningSecret();
-            // $wh = new Webhook($secret);
-            // $json = $wh->verify($payload, $svix_headers);
-            $json = json_decode($payload);
+            $secret = $this->zenkipay->getWebhookSigningSecret();
+            $wh = new Webhook($secret);
+            $json = $wh->verify($payload, $svix_headers);
             $payment = json_decode($json->flatData);
 
             if ($payment->paymentInfo->cryptoPayment->transactionStatus != 'COMPLETED' || !$payment->cartId) {

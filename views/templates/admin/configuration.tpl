@@ -35,12 +35,12 @@
         <div class="znk-header">
             <img src="{$module_dir|escape:'htmlall':'UTF-8'}views/img/logo-white.png" alt="Zenkipay" class="znk-img" />
             <div class="znk-copy">
-                <p>Your shopper can pay with cryptos, any wallet, any coin! Transacion 100% secured.</p>
+                <p>{l s='Your shopper can pay with cryptos, any wallet, any coin! Transaction 100% secured.' mod='zenkipay'}</p>
             </div>
         </div>
         <div class="znk-form-container">
-            <p class="instructions">To set up quickly and easily, enter the synchronization code from your Zenkipay
-                portal.
+            <p class="instructions">
+{l s='To set up quickly and easily, enter the synchronization code from your Zenkipay portal. If you don\'t have an account, open one for free.' mod='zenkipay'}
             </p>
             <hr>
 
